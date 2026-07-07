@@ -7,10 +7,16 @@ import Foundation
 import ARKit
 import Observation
 
+enum HomeDepartureStyle: Equatable {
+    case solo
+    case multiplayer
+}
+
 @MainActor @Observable
 final class AppState: RaceSessionDelegate {
     var phase: AppPhase = .home
     var role: PlayerRole = .solo
+    var homeDeparture: HomeDepartureStyle?
     var raceConfig = RaceConfig()
     var players: [PlayerProfile] = []
     var carStates: [CarState] = []
@@ -81,6 +87,7 @@ final class AppState: RaceSessionDelegate {
         arController.onRelocalizationReady = { [weak self] in
             self?.onRelocalizationComplete()
         }
+        Task { await CarModelLoader.preload() }
     }
 
     // MARK: - Navigation
@@ -138,6 +145,15 @@ final class AppState: RaceSessionDelegate {
         raceStartTime = nil
         elapsedTime = 0
         lastRemotePoseTimestamp = [:]
+        homeDeparture = nil
+    }
+
+    func triggerHomeDeparture(_ style: HomeDepartureStyle) {
+        homeDeparture = style
+    }
+
+    func clearHomeDeparture() {
+        homeDeparture = nil
     }
 
     func beginPlayTogether() {
@@ -221,8 +237,37 @@ final class AppState: RaceSessionDelegate {
         players = [localPlayer(isHost: true)]
         placementError = nil
         placementScale = 1.0
+        phase = .soloLapSelect
+    }
+
+    func confirmSoloLapSelect() {
         pendingPlacementStart = true
         phase = .placement
+    }
+
+    func playAgain() {
+        stopTimers()
+        steerInput = 0
+        throttleInput = 0
+        brakeInput = 0
+        arController.removeAllCars()
+        carStates = []
+        leaderboard = []
+        raceStartTime = nil
+        elapsedTime = 0
+        trackPlaced = false
+        lastTrackTransform = nil
+        placementScale = 1.0
+        placementError = nil
+
+        switch role {
+        case .solo:
+            phase = .soloLapSelect
+        case .host:
+            phase = .hostSetup
+        case .guest:
+            phase = .guestSetup
+        }
     }
 
     func startHosting() {
@@ -308,7 +353,7 @@ final class AppState: RaceSessionDelegate {
             arController.startPlacementPreview()
         }
         if phase == .racing {
-            respawnAllCars()
+            Task { await respawnAllCars() }
         }
     }
 
@@ -344,7 +389,7 @@ final class AppState: RaceSessionDelegate {
                 await broadcastTrackPlacedWithWorldMap(transform: result.transform, scale: result.scale)
             }
         } else {
-            startRace()
+            Task { await startRace() }
         }
     }
 
@@ -353,13 +398,13 @@ final class AppState: RaceSessionDelegate {
         placementScale = arController.placementScale
     }
 
-    func startRace() {
+    func startRace() async {
         guard trackPlaced else { return }
         phase = .racing
         raceStartTime = Date()
         elapsedTime = 0
         lastRemotePoseTimestamp = [:]
-        spawnAllCars()
+        await spawnAllCars()
 
         if role == .host {
             let payload = RaceStartPayload(startTime: Date().timeIntervalSince1970, config: raceConfig)
@@ -373,7 +418,7 @@ final class AppState: RaceSessionDelegate {
     }
 
     func hostStartRace() {
-        startRace()
+        Task { await startRace() }
     }
 
     func resendTrack() {
@@ -471,7 +516,7 @@ final class AppState: RaceSessionDelegate {
             raceConfig = payload.config
             if phase == .racing { return }
             if trackPlaced {
-                startRace()
+                Task { await startRace() }
             } else {
                 pendingRaceStart = true
             }
@@ -484,7 +529,7 @@ final class AppState: RaceSessionDelegate {
                     return
                 }
                 lastRemotePoseTimestamp[payload.playerId] = timestamp
-                ensureRemoteCarSpawned(playerId: payload.playerId)
+                Task { await ensureRemoteCarSpawned(playerId: payload.playerId) }
                 arController.setRemoteCarTarget(
                     playerId: payload.playerId,
                     transform: payload.transform,
@@ -651,10 +696,10 @@ final class AppState: RaceSessionDelegate {
         if trackPlaced { resendTrack() }
     }
 
-    private func spawnAllCars() {
+    private func spawnAllCars() async {
         carStates.removeAll()
         for (index, player) in players.enumerated() {
-            arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
+            await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
             carStates.append(CarState(
                 playerId: player.peerId,
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
@@ -669,10 +714,10 @@ final class AppState: RaceSessionDelegate {
         }
     }
 
-    private func respawnAllCars() {
+    private func respawnAllCars() async {
         guard phase == .racing, trackPlaced else { return }
         arController.removeAllCars()
-        spawnAllCars()
+        await spawnAllCars()
     }
 
     private func localPlayer(isHost: Bool, colorHex: String = PlayerColors.hostHex) -> PlayerProfile {
@@ -773,9 +818,11 @@ final class AppState: RaceSessionDelegate {
 
         if pendingRaceStart {
             pendingRaceStart = false
-            if phase != .racing { startRace() }
+            if phase != .racing {
+                Task { await startRace() }
+            }
         } else if phase == .racing {
-            respawnAllCars()
+            Task { await respawnAllCars() }
         }
     }
 
@@ -812,11 +859,11 @@ final class AppState: RaceSessionDelegate {
         expectedWorldMapChunks = 0
     }
 
-    private func ensureRemoteCarSpawned(playerId: String) {
+    private func ensureRemoteCarSpawned(playerId: String) async {
         guard phase == .racing, !arController.hasCar(playerId: playerId) else { return }
         guard let index = players.firstIndex(where: { $0.peerId == playerId }) else { return }
         let player = players[index]
-        arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
+        await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
         if !carStates.contains(where: { $0.playerId == playerId }) {
             carStates.append(CarState(
                 playerId: player.peerId,

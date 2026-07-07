@@ -280,12 +280,12 @@ final class ARSceneController {
         cars[playerId] != nil
     }
 
-    func spawnCar(playerId: String, colorHex: String, gridIndex: Int) {
+    func spawnCar(playerId: String, colorHex: String, gridIndex: Int) async {
         guard let trackAnchor else { return }
         removeCar(playerId: playerId)
 
         let color = UIColor(hex: colorHex) ?? .systemRed
-        let car = CarModelLoader.makeCar(color: color)
+        let car = await CarModelLoader.makeCar(color: color)
         car.name = "Car_\(playerId)"
 
         let lateralOffset = Float(gridIndex) * 0.06 - 0.03

@@ -17,6 +17,8 @@ struct RootView: View {
             switch appState.phase {
             case .home:
                 HomeView()
+            case .soloLapSelect:
+                SoloLapSelectView()
             case .multiplayerRolePicker:
                 MultiplayerRolePickerView()
             case .permissionPrimer:
@@ -35,6 +37,12 @@ struct RootView: View {
                 EmptyView()
             case .results:
                 ResultsView()
+            }
+
+            if let departure = appState.homeDeparture {
+                HomeDepartureOverlay(style: departure)
+                    .transition(.opacity)
+                    .zIndex(100)
             }
         }
         .environment(appState)

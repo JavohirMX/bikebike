@@ -5,12 +5,15 @@
 
 import Combine
 import Foundation
+import os
 import RealityKit
 import UIKit
 
 @MainActor
 enum CarModelLoader {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "racecar", category: "CarModelLoader")
     private static let modelName = "bike-talin"
+    private static let modelFileName = "bike-talin.usdz"
     /// Scale the bike footprint relative to the invisible drive collider.
     private static let visualFitScale: Float = 1.35
     /// Blender export arrives pitched backward; stand it upright before fitting.
@@ -38,8 +41,9 @@ enum CarModelLoader {
             do {
                 let loaded = try await loadTemplateEntity()
                 templateEntity = loaded
+                logger.info("Loaded \(modelName, privacy: .public) on \(UIDevice.current.model, privacy: .public)")
             } catch {
-                print("CarModelLoader preload failed: \(error)")
+                logger.error("Preload failed on \(UIDevice.current.model, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 
@@ -47,8 +51,11 @@ enum CarModelLoader {
         await task.value
     }
 
-    static func makeCar(color: UIColor) -> Entity {
+    static func makeCar(color: UIColor) async -> Entity {
+        await preload()
+
         guard let templateEntity else {
+            logger.warning("Using procedural fallback car — USDZ template unavailable")
             return ProceduralTrack.makeCar(color: color)
         }
 
@@ -59,9 +66,55 @@ enum CarModelLoader {
         return root
     }
 
+    private static func resolveModelURL() -> URL? {
+        let subdirectoryCandidates: [String?] = ["Resources", nil]
+
+        for subdirectory in subdirectoryCandidates {
+            if let url = Bundle.main.url(
+                forResource: modelName,
+                withExtension: "usdz",
+                subdirectory: subdirectory
+            ) {
+                logger.debug("Resolved model at \(url.path, privacy: .public)")
+                return url
+            }
+        }
+
+        if let url = findResource(named: modelFileName, in: Bundle.main.resourceURL) {
+            logger.debug("Resolved model via recursive search at \(url.path, privacy: .public)")
+            return url
+        }
+
+        logger.error("Could not resolve \(modelFileName, privacy: .public) in app bundle")
+        return nil
+    }
+
+    private static func findResource(named fileName: String, in directory: URL?) -> URL? {
+        guard let directory else { return nil }
+
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        for case let fileURL as URL in enumerator where fileURL.lastPathComponent == fileName {
+            return fileURL
+        }
+
+        return nil
+    }
+
     private static func loadTemplateEntity() async throws -> Entity {
-        try await withCheckedThrowingContinuation { continuation in
-            loadCancellable = Entity.loadAsync(named: modelName, in: .main)
+        guard let url = resolveModelURL() else {
+            throw CarModelLoadError.modelNotFound(modelName)
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            loadCancellable = Entity.loadAsync(contentsOf: url)
                 .sink(
                     receiveCompletion: { completion in
                         switch completion {
@@ -176,5 +229,16 @@ enum CarModelLoader {
 
     private static func materialNameSuggestsMetal(_ name: String) -> Bool {
         ["frame", "panel", "fairing", "tank", "shell"].contains(where: { name.contains($0) })
+    }
+}
+
+enum CarModelLoadError: LocalizedError {
+    case modelNotFound(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .modelNotFound(let name):
+            "Could not find \(name).usdz in app bundle"
+        }
     }
 }

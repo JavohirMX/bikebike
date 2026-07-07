@@ -222,40 +222,110 @@ struct PlacementOverlay: View {
 }
 
 struct ResultsView: View {
-  @Environment(AppState.self) private var appState
+    @Environment(AppState.self) private var appState
+
+    private var winnerTime: TimeInterval {
+        appState.leaderboard.first?.totalTime ?? 0
+    }
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Race Complete")
-                .font(.title.bold())
-            VStack(spacing: 10) {
-                ForEach(appState.leaderboard) { entry in
-            HStack {
-                Text("#\(entry.rank)")
-                    .frame(width: 36, alignment: .leading)
-                if let hex = appState.players.first(where: { $0.peerId == entry.playerId })?.carColorHex {
-                    PlayerColorDot(hex: hex, size: 10)
-                }
-                Text(entry.displayName)
-                        Spacer()
-                        Text(formatTime(entry.totalTime))
-                            .monospacedDigit()
+        ZStack {
+            BikeBikeBackground(blurRadius: 6)
+
+            VStack(spacing: 20) {
+                Spacer()
+
+                BikeBikeModalCard {
+                    HStack(spacing: 8) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(BikeBikeTheme.yellow)
+                        Text("Food Delivered")
+                            .font(BikeBikeTheme.titleFont(size: 26))
+                            .foregroundStyle(BikeBikeTheme.yellow)
+                            .shadow(color: BikeBikeTheme.darkBlue, radius: 0, x: 1, y: 2)
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(BikeBikeTheme.yellow)
                     }
-                    .padding(.horizontal)
+                } content: {
+                    VStack(spacing: 0) {
+                        tableHeader
+
+                        ForEach(appState.leaderboard) { entry in
+                            tableRow(entry)
+                        }
+                    }
                 }
+                .frame(maxWidth: 520)
+
+                HStack(spacing: 16) {
+                    BikeBikePillButton(title: "Exit", style: .blue) {
+                        appState.goHome()
+                    }
+                    .frame(width: 200)
+
+                    BikeBikePillButton(title: "Play Again", style: .yellow) {
+                        appState.playAgain()
+                    }
+                    .frame(width: 200)
+                }
+
+                Spacer()
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            Button("Home") { appState.goHome() }
-                .buttonStyle(.borderedProminent)
+            .padding(.horizontal, 32)
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+    }
+
+    private var tableHeader: some View {
+        HStack {
+            Text("#")
+                .frame(width: 36, alignment: .center)
+            Text("Player")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Rating")
+                .frame(width: 90, alignment: .center)
+            Text("Time")
+                .frame(width: 80, alignment: .trailing)
+        }
+        .font(BikeBikeTheme.captionFont(size: 13))
+        .foregroundStyle(.white)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(BikeBikeTheme.skyBlue)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.bottom, 8)
+    }
+
+    private func tableRow(_ entry: LeaderboardEntry) -> some View {
+        let stars = StarRatingCalculator.stars(for: entry.totalTime, winnerTime: winnerTime)
+
+        return HStack {
+            RankBadge(rank: entry.rank)
+                .frame(width: 36, alignment: .center)
+
+            Text(entry.displayName)
+                .font(BikeBikeTheme.captionFont(size: 15))
+                .foregroundStyle(BikeBikeTheme.darkBlue)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            StarRatingView(rating: stars)
+                .frame(width: 90, alignment: .center)
+
+            Text(formatTime(entry.totalTime))
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(BikeBikeTheme.darkBlue)
+                .frame(width: 80, alignment: .trailing)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
     }
 
     private func formatTime(_ t: TimeInterval) -> String {
-        String(format: "%.1fs", t)
+        let total = Int(t)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
 }

@@ -12,31 +12,42 @@ struct HostSetupView: View {
         appState.lobbyReady
     }
 
-    private var guestConnected: Bool {
-        lobbyReady
-    }
-
     private var joinURLString: String {
         JoinLink.buildURL(hostName: appState.raceSession.localDisplayName)?.absoluteString ?? ""
     }
 
     var body: some View {
-        MultiplayerSetupShell(
-            title: "Host Setup",
-            onLeave: { appState.goHome() },
-            onHelp: { appState.showConnectionHelp = true },
-            banner: {
-                Group {
-                    if let error = appState.sessionErrorMessage {
-                        SessionErrorBanner(message: error) {
-                            appState.retrySession()
-                        }
-                    }
+        ZStack {
+            BikeBikeBackground(blurRadius: 4)
+
+            VStack(spacing: 0) {
+                HStack {
+                    BikeBikeBackButton { appState.goHome() }
+                    Spacer()
                 }
-            },
-            leftColumn: { leftColumn },
-            rightColumn: { rightColumn }
-        )
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                if let error = appState.sessionErrorMessage {
+                    SessionErrorBanner(message: error) {
+                        appState.retrySession()
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+                }
+
+                HStack(alignment: .top, spacing: 24) {
+                    receiptColumn
+                        .frame(maxWidth: .infinity)
+
+                    instructionsColumn
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+            }
+        }
         .sheet(isPresented: Binding(
             get: { appState.showConnectionHelp },
             set: { appState.showConnectionHelp = $0 }
@@ -45,135 +56,98 @@ struct HostSetupView: View {
         }
     }
 
-    private var hostSteps: [SetupChecklistStep] {
-        [
-            SetupChecklistStep(
-                id: 1,
-                title: "Allow local network",
-                subtitle: appState.sessionHasStarted ? "Done" : "Tap Continue first",
-                status: appState.sessionHasStarted ? .done : .pending
-            ),
-            SetupChecklistStep(
-                id: 2,
-                title: "Friend scans your code",
-                subtitle: "Show QR on the right",
-                status: guestConnected ? .done : .active
-            ),
-            SetupChecklistStep(
-                id: 3,
-                title: "Guest connected",
-                subtitle: guestConnected ? "Ready" : "Waiting…",
-                status: guestConnected ? .done : (appState.sessionHasStarted ? .active : .pending)
-            ),
-            SetupChecklistStep(
-                id: 4,
-                title: "Place track",
-                subtitle: appState.trackPlaced ? "Done" : "After guest joins",
-                status: appState.trackPlaced ? .done : (guestConnected ? .active : .pending)
-            ),
-            SetupChecklistStep(
-                id: 5,
-                title: "Start race",
-                subtitle: "When track is placed",
-                status: appState.phase == .racing ? .done : (appState.trackPlaced ? .active : .pending)
-            ),
-        ]
+    private var receiptColumn: some View {
+        ReceiptPanel {
+            VStack(spacing: 8) {
+                Text("Room QR")
+                    .font(BikeBikeTheme.bodyFont(size: 18))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+
+                if !joinURLString.isEmpty {
+                    QRCodeView(urlString: joinURLString, size: 140)
+                }
+
+                Text("Scan to join the game")
+                    .font(BikeBikeTheme.captionFont(size: 13))
+                    .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.7))
+
+                ReceiptDashedDivider()
+
+                Text("Players")
+                    .font(BikeBikeTheme.bodyFont(size: 16))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+
+                if appState.players.isEmpty {
+                    Text("Waiting for players...")
+                        .font(BikeBikeTheme.captionFont(size: 12))
+                        .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.5))
+                } else {
+                    PlayerAvatarGrid(players: appState.players)
+                }
+            }
+        }
+        .frame(maxHeight: 420)
     }
 
-    @ViewBuilder
-    private var leftColumn: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SetupChecklistView(steps: hostSteps, compact: true)
+    private var instructionsColumn: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            MultiplayerBanner()
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            if !appState.players.isEmpty {
-                Text("Players")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                ForEach(appState.players) { player in
-                    HStack(spacing: 6) {
-                        PlayerColorDot(hex: player.carColorHex, size: 8)
-                        Text(player.displayName)
-                            .font(.caption)
-                        if player.isHost {
-                            Text("(Host)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+            VStack(alignment: .leading, spacing: 12) {
+                instructionRow(1, "Open the app on the other phone")
+                instructionRow(2, "Click the join a team option")
+                instructionRow(3, "Scan the QR to get in to the group")
+                instructionRow(4, "Enter user nickname")
             }
 
-            if appState.raceSession.hasPendingGuestConnection && !lobbyReady {
-                Text("Guest connecting…")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            } else if appState.isSessionConnected && !lobbyReady {
-                Text("Waiting for guest to join lobby…")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Stepper(
-                "Laps: \(appState.raceConfig.lapCount)",
-                value: Binding(
-                    get: { appState.raceConfig.lapCount },
-                    set: { appState.raceConfig.lapCount = $0 }
-                ),
-                in: 1...10
-            )
-            .font(.caption)
+            Spacer(minLength: 0)
 
             if lobbyReady && !appState.trackPlaced {
-                Button("Place Track") {
+                BikeBikePillButton(title: "Place Track", style: .blue) {
                     appState.beginPlacement()
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
 
             if appState.trackPlaced {
-                Button("Start Race") {
+                BikeBikePillButton(
+                    title: "Start Game",
+                    style: .yellow,
+                    isEnabled: lobbyReady
+                ) {
                     appState.hostStartRace()
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(!lobbyReady)
 
                 if !lobbyReady {
-                    Text("Waiting for guest to connect…")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Text("Waiting for guest to connect...")
+                        .font(BikeBikeTheme.captionFont(size: 12))
+                        .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.6))
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
-
-                Button("Resend Track") {
-                    appState.resendTrack()
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            } else if lobbyReady {
+                Text("Guest connected — place the track to continue")
+                    .font(BikeBikeTheme.captionFont(size: 12))
+                    .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                Text("Waiting for guest to scan QR...")
+                    .font(BikeBikeTheme.captionFont(size: 12))
+                    .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
-        .padding(.trailing, 8)
+        .frame(maxHeight: 420)
     }
 
-    @ViewBuilder
-    private var rightColumn: some View {
-        VStack(spacing: 12) {
-            Spacer(minLength: 0)
-            if !joinURLString.isEmpty {
-                VStack(spacing: 10) {
-                    QRCodeView(urlString: joinURLString, size: 160)
-                    Text("Friend taps I'm joining → scans this code")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity)
-                .background(Color(.secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-            }
-            Spacer(minLength: 0)
+    private func instructionRow(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number).")
+                .font(BikeBikeTheme.bodyFont(size: 16))
+                .foregroundStyle(BikeBikeTheme.darkBlue)
+                .frame(width: 24, alignment: .leading)
+            Text(text)
+                .font(BikeBikeTheme.captionFont(size: 15))
+                .foregroundStyle(BikeBikeTheme.darkBlue)
         }
-        .padding(.leading, 8)
     }
 }

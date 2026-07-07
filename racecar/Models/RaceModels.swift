@@ -10,6 +10,7 @@ import simd
 
 enum AppPhase: Equatable {
     case home
+    case soloLapSelect
     case multiplayerRolePicker
     case permissionPrimer
     case hostSetup

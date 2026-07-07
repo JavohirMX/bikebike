@@ -10,6 +10,35 @@ struct GuestSetupView: View {
     @State private var showBrowseFallback = false
 
     var body: some View {
+        Group {
+            if joinedLobby && appState.trackPlaced && appState.phase != .racing {
+                GuestWaitingView()
+            } else {
+                setupContent
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showConnectionHelp },
+            set: { appState.showConnectionHelp = $0 }
+        )) {
+            MultiplayerConnectionHelpView()
+        }
+        .sheet(isPresented: $showBrowseFallback) {
+            NavigationStack {
+                BrowseSessionsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") { showBrowseFallback = false }
+                        }
+                    }
+            }
+        }
+        .onChange(of: appState.isSessionConnected) { _, connected in
+            if connected { showBrowseFallback = false }
+        }
+    }
+
+    private var setupContent: some View {
         MultiplayerSetupShell(
             title: "Join Setup",
             onLeave: { appState.goHome() },
@@ -30,25 +59,6 @@ struct GuestSetupView: View {
             leftColumn: { leftColumn },
             rightColumn: { rightColumn }
         )
-        .sheet(isPresented: Binding(
-            get: { appState.showConnectionHelp },
-            set: { appState.showConnectionHelp = $0 }
-        )) {
-            MultiplayerConnectionHelpView()
-        }
-        .sheet(isPresented: $showBrowseFallback) {
-            NavigationStack {
-                BrowseSessionsView()
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Close") { showBrowseFallback = false }
-                        }
-                    }
-            }
-        }
-        .onChange(of: appState.isSessionConnected) { _, connected in
-            if connected { showBrowseFallback = false }
-        }
     }
 
     private var joinedLobby: Bool {
