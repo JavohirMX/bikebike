@@ -37,11 +37,11 @@ A local multiplayer augmented reality racing game for iOS. Race as delivery driv
 
 ```bash
 # Clone the repo
-git clone https://github.com/JavohirMX/ar-racing-game.git
-cd ar-racing-game
+git clone https://github.com/JavohirMX/bikebike.git
+cd bikebike
 
 # Open in Xcode
-open BikeBike.xcodeproj
+open bikebike.xcodeproj
 
 # Build and run on a physical iOS device
 # (ARKit does not work in the simulator)
@@ -50,7 +50,7 @@ open BikeBike.xcodeproj
 ## Project Structure
 
 ```
-BikeBike/
+bikebike/
 ├── App/            # App entry point, dependency injection
 ├── Game/           # Race state machine, game logic
 ├── Entities/       # RealityKit entities and components

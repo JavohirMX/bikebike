@@ -406,7 +406,7 @@ CoreHaptics engine is created on app launch. If the device doesn't support CoreH
 ## Project Structure
 
 ```
-BikeBike/
+bikebike/
 ├── App/
 │   ├── BikeBikeApp.swift              # @main entry point
 │   └── AppDependencyContainer.swift   # DI setup
