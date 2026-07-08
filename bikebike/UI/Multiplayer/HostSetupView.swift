@@ -91,7 +91,7 @@ struct HostSetupView: View {
 
     private var instructionsColumn: some View {
         VStack(alignment: .leading, spacing: 20) {
-            MultiplayerBanner()
+            HeadingBanner(title: "Multiplayer")
                 .frame(maxWidth: .infinity, alignment: .center)
 
             VStack(alignment: .leading, spacing: 12) {
