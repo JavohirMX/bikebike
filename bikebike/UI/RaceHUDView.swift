@@ -88,7 +88,7 @@ struct RaceHUDView: View {
                 brake: Bindable(appState).brakeInput
             )
             Spacer()
-            VirtualJoystick(
+            SteerArrowButtons(
                 steer: Bindable(appState).steerInput
             )
         }

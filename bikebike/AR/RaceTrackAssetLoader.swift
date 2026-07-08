@@ -72,9 +72,7 @@ enum RaceTrackAssetLoader {
                let geometry = USDZTrackGuideParser.buildGeometry(
                 from: guides,
                 relativeTo: prepared,
-                presetId: definition.id,
-                displayName: definition.title,
-                centerlineBaseName: definition.centerlineBaseName
+                
                ) {
                 loadedTracks[definition.id] = LoadedTrack(templateEntity: prepared, templateGeometry: geometry)
                 logger.info("Loaded \(modelFileName, privacy: .public) using guide+curve-json")
