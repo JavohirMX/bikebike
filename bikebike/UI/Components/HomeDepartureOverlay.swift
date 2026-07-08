@@ -16,10 +16,16 @@ struct HomeDepartureOverlay: View {
         }
     }
 
+    private var duration: Duration {
+        switch style {
+        case .solo: .milliseconds(2200)
+        case .multiplayer: .milliseconds(2700)
+        }
+    }
+
     var body: some View {
         ZStack {
             BikeBikeBackground()
-                .opacity(0.85)
 
             HomeBikeScene(mode: sceneMode)
                 .padding(.horizontal, 24)
@@ -27,7 +33,7 @@ struct HomeDepartureOverlay: View {
         .allowsHitTesting(false)
         .onAppear {
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1200))
+                try? await Task.sleep(for: duration)
                 appState.clearHomeDeparture()
             }
         }

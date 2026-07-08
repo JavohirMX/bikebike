@@ -7,16 +7,20 @@ import SwiftUI
 
 struct SoloLapSelectView: View {
     @Environment(AppState.self) private var appState
+    @State private var controlsOpacity: CGFloat = 0
 
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 6)
+            BikeBikeBackground()
+
+            HomeBikeScene(mode: .parked)
+                .padding(.horizontal, 24)
 
             HStack {
                 Spacer()
                 
                 BikeBikeModalCard {
-                    HeadingBanner(title: "Singleplayer")
+                    MultiplayerBanner(title: "Singleplayer")
                 } content: {
                     VStack(spacing: 28) {
                         Text("Lap Count")
@@ -39,6 +43,7 @@ struct SoloLapSelectView: View {
                 }
                 .frame(width: 380)
                 .padding(.trailing, 40)
+                .opacity(controlsOpacity)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -46,6 +51,25 @@ struct SoloLapSelectView: View {
                 .padding(.leading, 32)
                 .padding(.top, 24)
                 .ignoresSafeArea()
+        }
+        .onAppear {
+            if appState.homeDeparture == nil {
+                fadeInControls()
+            }
+        }
+        .onChange(of: appState.homeDeparture) { _, departure in
+            if departure == nil {
+                fadeInControls()
+            } else {
+                controlsOpacity = 0
+            }
+        }
+    }
+
+    private func fadeInControls() {
+        controlsOpacity = 0
+        withAnimation(.easeOut(duration: 0.35)) {
+            controlsOpacity = 1
         }
     }
 }
