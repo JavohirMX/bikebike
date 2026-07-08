@@ -21,7 +21,8 @@ struct ARRaceView: View {
             if appState.phase == .placement {
                 ARCoachingOverlayRepresentable(
                     session: appState.arSession,
-                    activatesAutomatically: appState.planeDetectionStatus == .scanning
+                    activatesAutomatically: appState.planeDetectionStatus == .scanning,
+                    planeDetectionStatus: appState.planeDetectionStatus
                 )
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -68,9 +69,7 @@ private struct ARViewContainer: UIViewRepresentable {
         arView.cameraMode = .ar
         arView.environment.sceneUnderstanding.options = []
 
-        let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal]
-        config.environmentTexturing = .automatic
+        let config = ARSessionConfigFactory.makeWorldConfig(planeDetection: true)
         arView.session.run(config)
 
         appState.arSession = arView.session

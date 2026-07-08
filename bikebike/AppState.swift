@@ -89,7 +89,6 @@ final class AppState: RaceSessionDelegate {
         arController.onRelocalizationReady = { [weak self] in
             self?.onRelocalizationComplete()
         }
-        Task { await CarModelLoader.preload() }
     }
 
     // MARK: - Navigation
@@ -719,6 +718,7 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func spawnAllCars() async {
+        await CarModelLoader.preload()
         carStates.removeAll()
         for (index, player) in players.enumerated() {
             await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)

@@ -9,6 +9,7 @@ import SwiftUI
 struct ARCoachingOverlayRepresentable: UIViewRepresentable {
     let session: ARSession
     var activatesAutomatically: Bool
+    var planeDetectionStatus: PlaneDetectionStatus
 
     func makeUIView(context: Context) -> ARCoachingOverlayView {
         let overlay = ARCoachingOverlayView()
@@ -21,5 +22,11 @@ struct ARCoachingOverlayRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: ARCoachingOverlayView, context: Context) {
         uiView.session = session
         uiView.activatesAutomatically = activatesAutomatically
+        switch planeDetectionStatus {
+        case .ready, .surfaceFound:
+            uiView.setActive(false, animated: true)
+        case .scanning:
+            break
+        }
     }
 }

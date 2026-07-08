@@ -146,15 +146,14 @@ enum RaceTrackAssetLoader {
         let root = Entity()
         root.name = "TrackRoot"
 
-        let visual = loaded.clone(recursive: true)
         // Blender USD exports often keep the tabletop layout in the XY plane; lay it on ARKit's XZ floor.
-        visual.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
+        loaded.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
 
-        let bounds = visual.visualBounds(relativeTo: nil)
+        let bounds = loaded.visualBounds(relativeTo: nil)
         let minY = bounds.center.y - bounds.extents.y / 2
 
-        visual.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
-        root.addChild(visual)
+        loaded.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
+        root.addChild(loaded)
 
         return root
     }
@@ -162,10 +161,27 @@ enum RaceTrackAssetLoader {
 
 @MainActor
 enum RaceTrackFactory {
-    static var showsDebugBorders = true
+    static var showsDebugBorders: Bool {
+        #if DEBUG
+        return !DeviceMemoryPolicy.isConstrained
+        #else
+        false
+        #endif
+    }
 
     static func preloadAssets() async {
         await RaceTrackAssetLoader.preload()
+    }
+
+    static func makePlacementGhost(for trackId: String, scale: Float) -> Entity {
+        if DeviceMemoryPolicy.isConstrained {
+            return makeTrackEntity(for: ProceduralTrack.presetId, scale: scale, opacity: 0.55)
+        }
+        return makeTrackEntity(for: trackId, scale: scale, opacity: 0.55)
+    }
+
+    static var usesFullTrackPlacementGhost: Bool {
+        !DeviceMemoryPolicy.isConstrained
     }
 
     static func resolvedTrackId(for requestedTrackId: String) -> String {
@@ -204,6 +220,13 @@ enum RaceTrackFactory {
         }
 
         return entity
+    }
+
+    static func stripOpacity(from entity: Entity) {
+        entity.components.remove(OpacityComponent.self)
+        for child in entity.children {
+            stripOpacity(from: child)
+        }
     }
 
     private static func applyOpacity(_ opacity: Float, to entity: Entity) {
