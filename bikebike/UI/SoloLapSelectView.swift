@@ -12,23 +12,17 @@ struct SoloLapSelectView: View {
         ZStack {
             BikeBikeBackground(blurRadius: 6)
 
-            VStack {
-                HStack {
-                    BikeBikeBackButton { appState.goHome() }
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-
+            HStack {
                 Spacer()
-
+                
                 BikeBikeModalCard {
-                    MultiplayerBanner()
+                    HeadingBanner(title: "Singleplayer")
                 } content: {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 28) {
                         Text("Lap Count")
-                            .font(BikeBikeTheme.bodyFont(size: 20))
-                            .foregroundStyle(BikeBikeTheme.darkBlue)
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(BikeBikeTheme.skyBlue)
+                            .padding(.top, 24) // Increased top padding
 
                         LapCountStepper(
                             value: Binding(
@@ -37,18 +31,21 @@ struct SoloLapSelectView: View {
                             )
                         )
 
-                        TrackOptionPicker()
-
                         BikeBikePillButton(title: "Place Track", style: .yellow) {
                             appState.confirmSoloLapSelect()
                         }
-                        .padding(.top, 8)
+                        .padding(.bottom, 8)
                     }
                 }
-                .bikeBikeScreenContent(maxWidth: 380)
-
-                Spacer()
+                .frame(width: 380)
+                .padding(.trailing, 40)
             }
+        }
+        .overlay(alignment: .topLeading) {
+            BikeBikeBackButton { appState.goHome() }
+                .padding(.leading, 32)
+                .padding(.top, 24)
+                .ignoresSafeArea()
         }
     }
 }

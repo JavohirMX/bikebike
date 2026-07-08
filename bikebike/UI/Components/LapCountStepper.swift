@@ -8,20 +8,26 @@ import SwiftUI
 struct LapCountStepper: View {
     @Binding var value: Int
     var range: ClosedRange<Int> = 1...10
+    
+    // A little dark bluish tint as requested
+    private let textTint = Color(hex: "2B5A8F") ?? .blue
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 8) {
             stepperButton(systemName: "minus") {
                 if value > range.lowerBound { value -= 1 }
             }
 
             Text("\(value)")
-                .font(BikeBikeTheme.titleFont(size: 32))
-                .foregroundStyle(BikeBikeTheme.darkBlue)
-                .frame(width: 64, height: 64)
+                .font(BikeBikeTheme.titleFont(size: 28))
+                .foregroundStyle(textTint)
+                .frame(width: 60, height: 60)
                 .background(BikeBikeTheme.yellow)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: BikeBikeTheme.panelShadow, radius: 4, y: 2)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(BikeBikeTheme.skyBlue, lineWidth: 1.5)
+                )
 
             stepperButton(systemName: "plus") {
                 if value < range.upperBound { value += 1 }
@@ -33,11 +39,14 @@ struct LapCountStepper: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(BikeBikeTheme.darkBlue)
-                .frame(width: 56, height: 56)
+                .foregroundStyle(textTint)
+                .frame(width: 60, height: 60)
                 .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: BikeBikeTheme.panelShadow, radius: 4, y: 2)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(BikeBikeTheme.skyBlue, lineWidth: 1.5)
+                )
         }
         .buttonStyle(.plain)
     }

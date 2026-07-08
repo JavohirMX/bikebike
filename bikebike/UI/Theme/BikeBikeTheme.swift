@@ -19,19 +19,19 @@ enum BikeBikeTheme {
     static let panelShadow = Color.black.opacity(0.18)
 
     static func titleFont(size: CGFloat = 28) -> Font {
-        .system(size: size, weight: .bold, design: .rounded)
+        .system(size: size, weight: .heavy, design: .rounded)
     }
 
     static func buttonFont(size: CGFloat = 20) -> Font {
-        .system(size: size, weight: .bold, design: .rounded)
+        .system(size: size, weight: .heavy, design: .rounded)
     }
 
     static func bodyFont(size: CGFloat = 17) -> Font {
-        .system(size: size, weight: .semibold, design: .rounded)
+        .system(size: size, weight: .bold, design: .rounded)
     }
 
     static func captionFont(size: CGFloat = 14) -> Font {
-        .system(size: size, weight: .medium, design: .rounded)
+        .system(size: size, weight: .semibold, design: .rounded)
     }
 }
 

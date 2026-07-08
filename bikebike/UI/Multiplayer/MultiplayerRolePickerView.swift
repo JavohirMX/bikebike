@@ -23,7 +23,7 @@ struct MultiplayerRolePickerView: View {
                 Spacer()
 
                 VStack(spacing: 20) {
-                    MultiplayerBanner()
+                    HeadingBanner(title: "Multiplayer")
 
                     VStack(spacing: 14) {
                         BikeBikePillButton(title: "Create Game", style: .yellow) {

@@ -235,18 +235,7 @@ struct ResultsView: View {
                 Spacer()
 
                 BikeBikeModalCard {
-                    HStack(spacing: 8) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(BikeBikeTheme.yellow)
-                        Text("Food Delivered")
-                            .font(BikeBikeTheme.titleFont(size: 26))
-                            .foregroundStyle(BikeBikeTheme.yellow)
-                            .shadow(color: BikeBikeTheme.darkBlue, radius: 0, x: 1, y: 2)
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(BikeBikeTheme.yellow)
-                    }
+                    HeadingBanner(title: "Leaderboard")
                 } content: {
                     VStack(spacing: 0) {
                         tableHeader
