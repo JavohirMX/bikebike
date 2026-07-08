@@ -31,25 +31,36 @@ struct BikeBikePillButton: View {
         }
     }
 
+    private var strokeColor: Color {
+        switch style {
+        case .yellow: Color(hex: "00AEEF") ?? BikeBikeTheme.skyBlue
+        case .blue: Color(hex: "21A8E0") ?? .blue
+        }
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                 }
                 Text(title)
-                    .font(BikeBikeTheme.buttonFont())
+                    .font(BikeBikeTheme.buttonFont(size: 29))
             }
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.25), radius: 0, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.28), radius: 0, x: 0, y: 2)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .padding(.horizontal, 24)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 20)
             .background(
                 Capsule()
                     .fill(fillColor)
-                    .shadow(color: shadowColor.opacity(0.6), radius: 0, x: 0, y: 4)
+                    .shadow(color: shadowColor.opacity(0.55), radius: 0, x: 0, y: 3)
+                    .overlay(
+                        Capsule()
+                            .stroke(strokeColor, lineWidth: 2)
+                    )
             )
         }
         .buttonStyle(.plain)

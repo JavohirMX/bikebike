@@ -14,7 +14,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 2)
+            BikeBikeBackground()
 
             HomeBikeScene(mode: .parked)
                 .padding(.horizontal, 24)
@@ -23,7 +23,7 @@ struct HomeView: View {
                 Spacer()
 
                 VStack(spacing: 20) {
-                    BikeBikeLogo(height: 72)
+                    BikeBikeLogo(height: 100)
 
                     VStack(spacing: 14) {
                         BikeBikePillButton(
@@ -57,7 +57,7 @@ struct HomeView: View {
     }
 }
 
-#Preview("Home") {
+#Preview("Home", traits: .landscapeLeft) {
     HomeView()
         .environment(PreviewData.appState())
 }

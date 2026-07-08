@@ -65,6 +65,6 @@ struct RootView: View {
     }
 }
 
-#Preview("Root") {
+#Preview("Root", traits: .landscapeLeft) {
     RootView()
 }

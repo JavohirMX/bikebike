@@ -19,7 +19,7 @@ struct HomeBikeScene: View {
     @State private var idleBob: CGFloat = 0
     @State private var hasStarted = false
 
-    private let bikeHeight: CGFloat = 90
+    private let bikeHeight: CGFloat = 150
 
     var body: some View {
         GeometryReader { geometry in
