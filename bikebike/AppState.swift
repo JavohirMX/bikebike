@@ -167,7 +167,7 @@ final class AppState: RaceSessionDelegate {
 
     func selectMultiplayerRole(_ selectedRole: PlayerRole) {
         pendingMultiplayerRole = selectedRole
-        phase = .permissionPrimer
+        continueFromPermissionPrimer()
     }
 
     func backFromPermissionPrimer() {

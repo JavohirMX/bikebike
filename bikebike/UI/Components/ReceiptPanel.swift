@@ -13,15 +13,17 @@ struct ReceiptPanel<Content: View>: View {
             Image("receipt-panel")
                 .resizable()
                 .scaledToFill()
-                .frame(maxWidth: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                 .clipped()
 
-            content()
-                .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 16)
+            ScrollView(showsIndicators: false) {
+                content()
+                    .padding(.horizontal, 48)
+                    .padding(.bottom, 24)
+            }
+            .padding(.top, 64)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .frame(maxHeight: .infinity)
         .shadow(color: BikeBikeTheme.panelShadow, radius: 8, y: 4)
     }
 }
