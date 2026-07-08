@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MultiplayerRolePickerView: View {
     @Environment(AppState.self) private var appState
+    @State private var controlsOpacity: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -26,7 +27,7 @@ struct MultiplayerRolePickerView: View {
                 Spacer()
 
                 VStack(spacing: 20) {
-                    HeadingBanner(title: "Multiplayer")
+                    MultiplayerBanner(title: "Multiplayer")
 
                     VStack(spacing: 14) {
                         BikeBikePillButton(title: "Create Game", style: .yellow) {
@@ -40,9 +41,30 @@ struct MultiplayerRolePickerView: View {
                     .frame(width: 280)
                 }
                 .bikeBikeScreenContent(maxWidth: 400)
+                .offset(x: 160, y: -40)
+                .opacity(controlsOpacity)
 
                 Spacer()
             }
+        }
+        .onAppear {
+            if appState.homeDeparture == nil {
+                fadeInControls()
+            }
+        }
+        .onChange(of: appState.homeDeparture) { _, departure in
+            if departure == nil {
+                fadeInControls()
+            } else {
+                controlsOpacity = 0
+            }
+        }
+    }
+
+    private func fadeInControls() {
+        controlsOpacity = 0
+        withAnimation(.easeOut(duration: 0.35)) {
+            controlsOpacity = 1
         }
     }
 }
