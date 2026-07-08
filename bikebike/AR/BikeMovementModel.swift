@@ -29,14 +29,14 @@ struct BikeMovementResult {
 }
 
 enum BikeMovementModel {
-    static let maxSpeed: Float = 0.55
-    static let thrustForce: Float = 2.0
-    static let brakeForce: Float = 4.0
-    static let rollingDrag: Float = 1.5
-    static let wallSlideFriction: Float = 0.8
+    static let maxSpeed: Float = 0.5
+    static let thrustForce: Float = 2.5
+    static let brakeForce: Float = 4.5
+    static let rollingDrag: Float = 1.2
+    static let wallSlideFriction: Float = 0.75
 
-    static let maxYawRate: Float = 2.2
-    static let minSteerSpeed: Float = 0.08
+    static let maxYawRate: Float = 2.8
+    static let minSteerSpeed: Float = 0.05
     static let heightSmoothing: Float = 14
     static let pitchSmoothing: Float = 12
     static let pedalRampUp: Float = 0.5
@@ -145,7 +145,7 @@ enum BikeMovementModel {
 
     static func yaw(from orientation: simd_quatf) -> Float {
         let forward = orientation.act(SIMD3<Float>(0, 0, -1))
-        return atan2(forward.x, -forward.z)
+        return atan2(-forward.x, -forward.z)
     }
 
     private static func speedSteerFactor(_ speed: Float) -> Float {
@@ -153,7 +153,7 @@ enum BikeMovementModel {
     }
 
     private static func forwardDirection(yaw: Float) -> SIMD2<Float> {
-        SIMD2(sin(yaw), -cos(yaw))
+        SIMD2(-sin(yaw), -cos(yaw))
     }
 
     private static func composeOrientation(yaw: Float, pitch: Float, roll: Float) -> simd_quatf {

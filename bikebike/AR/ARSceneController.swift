@@ -31,6 +31,7 @@ final class ARSceneController {
     private var lastLapTimestamp: [String: TimeInterval] = [:]
     private var updateSubscription: (any Cancellable)?
     private var selectedTrackId: String = RaceTrackCatalog.defaultTrackId
+    private var trackScale: Float = 1.0
     private var trackGeometry: any RaceTrackGeometry = ProceduralTrackDefinition()
 
     var isPlacementMode = false
@@ -222,7 +223,8 @@ final class ARSceneController {
             trackAnchor = anchor
         }
 
-        trackGeometry = RaceTrackFactory.geometry(for: presetId)
+        trackGeometry = RaceTrackFactory.geometry(for: presetId, scale: scale)
+        trackScale = scale
 
         isPlacementMode = false
         trackConfirmed = true
@@ -283,7 +285,8 @@ final class ARSceneController {
         arView?.scene.addAnchor(anchor)
         trackAnchor = anchor
         selectedTrackId = RaceTrackCatalog.normalizedTrackId(trackId)
-        trackGeometry = RaceTrackFactory.geometry(for: trackId)
+        trackScale = scale
+        trackGeometry = RaceTrackFactory.geometry(for: trackId, scale: scale)
         trackConfirmed = true
         isPlacementMode = false
         stopPlaneDetectionForRacing()
@@ -441,7 +444,7 @@ final class ARSceneController {
         guard let trackAnchor else { return }
         var localPos = trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
         let yaw = BikeMovementModel.yaw(from: car.orientation(relativeTo: trackAnchor))
-        let forwardXZ = SIMD2(sin(yaw), -cos(yaw))
+        let forwardXZ = SIMD2(-sin(yaw), -cos(yaw))
         let halfWheelbase = trackGeometry.carSize.z / 2
 
         let frontSample = SIMD3(
@@ -550,7 +553,7 @@ final class ARSceneController {
     }
 
     private func refreshTrackGeometry() {
-        trackGeometry = RaceTrackFactory.geometry(for: selectedTrackId)
+        trackGeometry = RaceTrackFactory.geometry(for: selectedTrackId, scale: trackScale)
     }
 
     private func resumePlaneDetection() {
@@ -596,6 +599,7 @@ final class ARSceneController {
         trackAnchor?.removeFromParent()
         trackAnchor = nil
         trackConfirmed = false
+        trackScale = 1.0
     }
 
     private func removeGhost() {

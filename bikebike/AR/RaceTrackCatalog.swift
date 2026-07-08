@@ -14,6 +14,15 @@ struct TrackOption: Identifiable, Equatable {
     let isPrimary: Bool
 }
 
+struct USDZTrackDefinition {
+    let id: String
+    let title: String
+    let shortTitle: String
+    let subtitle: String
+    let modelName: String
+    let centerlineBaseName: String
+}
+
 struct TrackClampResult {
     var position: SIMD2<Float>
     var hitWall: Bool
@@ -67,16 +76,37 @@ extension RaceTrackGeometry {
 
 enum RaceTrackCatalog {
     static let usdzTrackId = "racetrack-usdz"
+    static let roadTrackId = "road-usdz"
     static let defaultTrackId = usdzTrackId
 
-    static let allOptions: [TrackOption] = [
-        TrackOption(
+    static let usdzTracks: [USDZTrackDefinition] = [
+        USDZTrackDefinition(
             id: usdzTrackId,
             title: "Racetrack",
             shortTitle: "Racetrack",
             subtitle: "Primary track loaded from racetrack.usdz",
-            isPrimary: true
+            modelName: "racetrack",
+            centerlineBaseName: "racetrack_centerline"
         ),
+        USDZTrackDefinition(
+            id: roadTrackId,
+            title: "Road",
+            shortTitle: "Road",
+            subtitle: "Curved road track from road.usdz",
+            modelName: "road",
+            centerlineBaseName: "road_centerline"
+        ),
+    ]
+
+    static let allOptions: [TrackOption] = usdzTracks.map {
+        TrackOption(
+            id: $0.id,
+            title: $0.title,
+            shortTitle: $0.shortTitle,
+            subtitle: $0.subtitle,
+            isPrimary: $0.id == usdzTrackId
+        )
+    } + [
         TrackOption(
             id: ProceduralTrack.presetId,
             title: "Classic Oval",
@@ -85,6 +115,14 @@ enum RaceTrackCatalog {
             isPrimary: false
         ),
     ]
+
+    static func usdzTrack(for trackId: String) -> USDZTrackDefinition? {
+        usdzTracks.first { $0.id == trackId }
+    }
+
+    static func isUSDZTrackId(_ trackId: String) -> Bool {
+        usdzTrack(for: trackId) != nil
+    }
 
     static func normalizedTrackId(_ trackId: String) -> String {
         allOptions.contains(where: { $0.id == trackId }) ? trackId : defaultTrackId
@@ -102,16 +140,24 @@ private enum TrackAxis {
 }
 
 struct ProceduralTrackDefinition: RaceTrackGeometry {
-    private let layout = OvalTrackLayout(
-        presetId: ProceduralTrack.presetId,
-        displayName: "Classic Oval",
-        turnRadius: 0.25,
-        straightLength: 0.30,
-        trackWidth: 0.12,
-        surfaceY: 0.03,
-        carSize: SIMD3<Float>(0.04, 0.016, 0.065),
-        axis: .x
-    )
+    private let layout: OvalTrackLayout
+
+    init() {
+        layout = OvalTrackLayout(
+            presetId: ProceduralTrack.presetId,
+            displayName: "Classic Oval",
+            turnRadius: 0.25,
+            straightLength: 0.30,
+            trackWidth: 0.12,
+            surfaceY: 0.03,
+            carSize: SIMD3<Float>(0.04, 0.016, 0.065),
+            axis: .x
+        )
+    }
+
+    fileprivate init(layout: OvalTrackLayout) {
+        self.layout = layout
+    }
 
     var presetId: String { layout.presetId }
     var displayName: String { layout.displayName }
@@ -144,6 +190,11 @@ struct ProceduralTrackDefinition: RaceTrackGeometry {
     func surfaceFrame(at localPos: SIMD3<Float>, hintArcLength: Float?) -> TrackSurfaceFrame {
         layout.surfaceFrame(at: localPos, hintArcLength: hintArcLength)
     }
+
+    func scaled(by scale: Float) -> ProceduralTrackDefinition {
+        guard abs(scale - 1) > 0.0001 else { return self }
+        return ProceduralTrackDefinition(layout: layout.scaled(by: scale))
+    }
 }
 
 struct USDZTrackGeometry: RaceTrackGeometry {
@@ -154,7 +205,7 @@ struct USDZTrackGeometry: RaceTrackGeometry {
 
     private let backend: Backend
 
-    init?(footprint: SIMD2<Float>) {
+    init?(footprint: SIMD2<Float>, presetId: String, displayName: String) {
         let longAxis = max(footprint.x, footprint.y)
         let shortAxis = min(footprint.x, footprint.y)
         guard longAxis > 0.2, shortAxis > 0.1 else { return nil }
@@ -166,8 +217,8 @@ struct USDZTrackGeometry: RaceTrackGeometry {
         let straightLength = max(0.06, longAxis - 2 * outerRadius)
 
         backend = .oval(OvalTrackLayout(
-            presetId: RaceTrackCatalog.usdzTrackId,
-            displayName: "Racetrack",
+            presetId: presetId,
+            displayName: displayName,
             turnRadius: turnRadius,
             straightLength: straightLength,
             trackWidth: max(0.06, trackWidth),
@@ -271,6 +322,23 @@ struct USDZTrackGeometry: RaceTrackGeometry {
         case .oval(let layout): layout.surfaceFrame(at: localPos, hintArcLength: hintArcLength)
         }
     }
+
+    func scaled(by scale: Float) -> USDZTrackGeometry {
+        guard abs(scale - 1) > 0.0001 else { return self }
+        switch backend {
+        case .sampled(let layout):
+            if let scaled = layout.scaled(by: scale) {
+                return USDZTrackGeometry(sampled: scaled)
+            }
+            return self
+        case .oval(let layout):
+            return USDZTrackGeometry(oval: layout.scaled(by: scale))
+        }
+    }
+
+    private init(oval layout: OvalTrackLayout) {
+        backend = .oval(layout)
+    }
 }
 
 struct SampledCenterlineLayout: RaceTrackGeometry {
@@ -330,16 +398,14 @@ struct SampledCenterlineLayout: RaceTrackGeometry {
     }
 
     func spawnTransform(gridIndex: Int) -> (position: SIMD3<Float>, orientationAngle: Float) {
-        let lateralOffset = Float(gridIndex) * 0.06 - 0.03
+        let laneSpacing = max(carSize.x, carSize.z) * 0.9
+        let lateralOffset = (Float(gridIndex) - 0.5) * laneSpacing
         let spawnArc = wrappedArc(finishArcLength - perimeter * 0.035)
         let frame = frame3D(atArcLength: spawnArc)
         let spawnPoint = frame.point3D + SIMD3(frame.right.x, 0, frame.right.y) * lateralOffset
-        let yaw = atan2(frame.tangent.y, frame.tangent.x)
+        let orientationAngle = atan2(-frame.tangent.x, -frame.tangent.y)
 
-        return (
-            spawnPoint,
-            -yaw + .pi / 2
-        )
+        return (spawnPoint, orientationAngle)
     }
 
     func clampToCorridor(_ localPos: SIMD3<Float>) -> TrackClampResult {
@@ -429,6 +495,22 @@ struct SampledCenterlineLayout: RaceTrackGeometry {
         let tangent = simd_normalize(points[1] - points[0])
         return (points3D[0], tangent, SIMD2(tangent.y, -tangent.x))
     }
+
+    func scaled(by scale: Float) -> SampledCenterlineLayout? {
+        guard abs(scale - 1) > 0.0001 else { return self }
+
+        let carHalf = carSize / 2
+        let rawHalfWidth = drivableHalfWidth + max(carHalf.x, carHalf.z)
+        return SampledCenterlineLayout(
+            presetId: presetId,
+            displayName: displayName,
+            points3D: points3D.map { $0 * scale },
+            drivableHalfWidth: rawHalfWidth * scale,
+            surfaceY: surfaceY * scale,
+            finishArcLength: finishArcLength * scale,
+            carSize: carSize * scale
+        )
+    }
 }
 
 private struct OvalTrackLayout: RaceTrackGeometry {
@@ -473,18 +555,19 @@ private struct OvalTrackLayout: RaceTrackGeometry {
     }
 
     func spawnTransform(gridIndex: Int) -> (position: SIMD3<Float>, orientationAngle: Float) {
-        let lateralOffset = Float(gridIndex) * 0.06 - 0.03
+        let laneSpacing = max(carSize.x, carSize.z) * 0.9
+        let lateralOffset = (Float(gridIndex) - 0.5) * laneSpacing
         let spawnT = max(0, finishLineParameter - 0.035)
         let tangent = centerlineTangent(t: spawnT)
         let right = centerlineRight(t: spawnT)
         let spawnPoint = centerlinePoint(t: spawnT) + right * lateralOffset
         let localPoint = inversePoint(spawnPoint)
         let localTangent = inverseVector(tangent)
-        let yaw = atan2(localTangent.y, localTangent.x)
+        let orientationAngle = atan2(-localTangent.x, -localTangent.y)
 
         return (
             SIMD3(localPoint.x, surfaceY, localPoint.y),
-            -yaw + .pi / 2
+            orientationAngle
         )
     }
 
@@ -524,6 +607,20 @@ private struct OvalTrackLayout: RaceTrackGeometry {
     func forwardArcDelta(from: Float, to: Float) -> Float {
         let delta = to - from
         return delta >= 0 ? delta : delta + perimeter
+    }
+
+    func scaled(by scale: Float) -> OvalTrackLayout {
+        guard abs(scale - 1) > 0.0001 else { return self }
+        return OvalTrackLayout(
+            presetId: presetId,
+            displayName: displayName,
+            turnRadius: turnRadius * scale,
+            straightLength: straightLength * scale,
+            trackWidth: trackWidth * scale,
+            surfaceY: surfaceY * scale,
+            carSize: carSize * scale,
+            axis: axis
+        )
     }
 
     private func canonicalPoint(from localPos: SIMD3<Float>) -> SIMD2<Float> {
