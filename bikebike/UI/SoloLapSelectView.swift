@@ -52,3 +52,11 @@ struct SoloLapSelectView: View {
         }
     }
 }
+
+#Preview("Solo Lap Select") {
+    SoloLapSelectView()
+        .environment(PreviewData.appState {
+            $0.phase = .soloLapSelect
+            $0.role = .solo
+        })
+}

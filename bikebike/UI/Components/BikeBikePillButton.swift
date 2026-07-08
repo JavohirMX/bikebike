@@ -57,3 +57,13 @@ struct BikeBikePillButton: View {
         .opacity(isEnabled ? 1 : 0.5)
     }
 }
+
+#Preview("Pill Buttons") {
+    VStack(spacing: 16) {
+        BikeBikePillButton(title: "Soloplayer", systemImage: "person.fill", style: .yellow) {}
+        BikeBikePillButton(title: "Multiplayer", systemImage: "person.3.fill", style: .blue) {}
+        BikeBikePillButton(title: "Disabled", systemImage: "lock.fill", style: .yellow, isEnabled: false) {}
+    }
+    .frame(width: 280)
+    .padding()
+}

@@ -32,3 +32,8 @@ struct LoadingTrackView: View {
         }
     }
 }
+
+#Preview("Loading Track") {
+    LoadingTrackView()
+        .padding()
+}

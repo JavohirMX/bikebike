@@ -34,3 +34,13 @@ struct GuestWaitingView: View {
         }
     }
 }
+
+#Preview("Guest Waiting") {
+    GuestWaitingView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestSetup
+            $0.role = .guest
+            $0.players = PreviewData.players
+            $0.trackPlaced = true
+        })
+}

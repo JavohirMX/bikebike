@@ -43,3 +43,8 @@ struct MultiplayerRolePickerView: View {
         }
     }
 }
+
+#Preview("Role Picker") {
+    MultiplayerRolePickerView()
+        .environment(PreviewData.appState { $0.phase = .multiplayerRolePicker })
+}

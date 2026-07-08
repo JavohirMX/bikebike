@@ -34,3 +34,13 @@ struct HomeDepartureOverlay: View {
         }
     }
 }
+
+#Preview("Solo Departure") {
+    HomeDepartureOverlay(style: .solo)
+        .environment(PreviewData.appState())
+}
+
+#Preview("Multiplayer Departure") {
+    HomeDepartureOverlay(style: .multiplayer)
+        .environment(PreviewData.appState())
+}

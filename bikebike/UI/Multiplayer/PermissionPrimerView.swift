@@ -99,3 +99,8 @@ struct PermissionPrimerView: View {
         }
     }
 }
+
+#Preview("Permission Primer") {
+    PermissionPrimerView()
+        .environment(PreviewData.appState { $0.phase = .permissionPrimer })
+}

@@ -42,3 +42,9 @@ struct LapCountStepper: View {
         .buttonStyle(.plain)
     }
 }
+
+#Preview("Lap Count Stepper") {
+    @Previewable @State var laps = 3
+    LapCountStepper(value: $laps)
+        .padding()
+}

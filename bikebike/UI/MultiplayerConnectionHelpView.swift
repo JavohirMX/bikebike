@@ -62,3 +62,7 @@ struct MultiplayerConnectionHelpView: View {
         }
     }
 }
+
+#Preview("Connection Help") {
+    MultiplayerConnectionHelpView()
+}

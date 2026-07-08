@@ -43,3 +43,8 @@ struct QRCodeView: View {
         return UIImage(cgImage: cgImage)
     }
 }
+
+#Preview("QR Code") {
+    QRCodeView(urlString: "bikebike://join?host=Talin", size: 180)
+        .padding()
+}

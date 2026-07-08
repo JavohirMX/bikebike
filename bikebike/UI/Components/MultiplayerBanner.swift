@@ -34,3 +34,11 @@ struct MultiplayerBanner: View {
         )
     }
 }
+
+#Preview("Multiplayer Banner") {
+    VStack(spacing: 16) {
+        MultiplayerBanner()
+        MultiplayerBanner(title: "Host Setup")
+    }
+    .padding()
+}

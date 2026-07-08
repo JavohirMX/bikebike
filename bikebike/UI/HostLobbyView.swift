@@ -180,3 +180,35 @@ private struct LobbyShell: View {
         .background(Color(.systemBackground))
     }
 }
+
+#Preview("Host Lobby") {
+    HostLobbyView()
+        .environment(PreviewData.appState {
+            $0.phase = .hostLobby
+            $0.role = .host
+            $0.players = PreviewData.players
+            $0.isSessionConnected = true
+        })
+}
+
+#Preview("Host Lobby – Track Placed") {
+    HostLobbyView()
+        .environment(PreviewData.appState {
+            $0.phase = .hostLobby
+            $0.role = .host
+            $0.players = PreviewData.players
+            $0.isSessionConnected = true
+            $0.trackPlaced = true
+        })
+}
+
+#Preview("Guest Lobby") {
+    GuestLobbyView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestLobby
+            $0.role = .guest
+            $0.players = PreviewData.players
+            $0.isSessionConnected = true
+            $0.connectedHostName = "Talin's iPhone"
+        })
+}

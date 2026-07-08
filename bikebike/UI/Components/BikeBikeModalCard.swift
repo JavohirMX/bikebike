@@ -59,3 +59,18 @@ private struct BikeBikeWaveShape: Shape {
         return path
     }
 }
+
+#Preview("Modal Card") {
+    BikeBikeModalCard {
+        Text("Header")
+            .font(.title2.bold())
+            .foregroundStyle(.white)
+    } content: {
+        VStack(spacing: 12) {
+            Text("Card body content goes here.")
+            BikeBikePillButton(title: "Continue", style: .blue) {}
+        }
+    }
+    .frame(width: 340)
+    .padding()
+}

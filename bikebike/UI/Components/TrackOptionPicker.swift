@@ -54,3 +54,9 @@ struct TrackOptionPicker: View {
         }
     }
 }
+
+#Preview("Track Option Picker") {
+    TrackOptionPicker()
+        .environment(PreviewData.appState())
+        .padding()
+}

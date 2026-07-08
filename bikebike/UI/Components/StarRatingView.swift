@@ -40,3 +40,17 @@ struct RankBadge: View {
             .background(Circle().fill(color))
     }
 }
+
+#Preview("Star Rating & Rank Badge") {
+    VStack(spacing: 16) {
+        StarRatingView(rating: 3)
+        StarRatingView(rating: 5)
+        HStack(spacing: 12) {
+            RankBadge(rank: 1)
+            RankBadge(rank: 2)
+            RankBadge(rank: 3)
+            RankBadge(rank: 4)
+        }
+    }
+    .padding()
+}

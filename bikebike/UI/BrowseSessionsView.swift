@@ -80,3 +80,16 @@ struct BrowseSessionsView: View {
         .background(Color(.systemBackground))
     }
 }
+
+#Preview("No Races") {
+    BrowseSessionsView()
+        .environment(PreviewData.appState { $0.phase = .browseSessions })
+}
+
+#Preview("With Races") {
+    BrowseSessionsView()
+        .environment(PreviewData.appState {
+            $0.phase = .browseSessions
+            $0.discoveredSessions = PreviewData.sessions
+        })
+}

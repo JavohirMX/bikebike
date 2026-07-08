@@ -115,3 +115,15 @@ struct HomeBikeScene: View {
         }
     }
 }
+
+#Preview("Parked") {
+    HomeBikeScene(mode: .parked)
+        .frame(height: 220)
+        .padding()
+}
+
+#Preview("Multiplayer Moving") {
+    HomeBikeScene(mode: .multiplayerMoving)
+        .frame(height: 220)
+        .padding()
+}

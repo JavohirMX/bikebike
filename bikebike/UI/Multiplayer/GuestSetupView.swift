@@ -261,3 +261,22 @@ struct GuestSetupView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
+
+#Preview("Scanning") {
+    GuestSetupView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestSetup
+            $0.role = .guest
+        })
+}
+
+#Preview("Connected") {
+    GuestSetupView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestSetup
+            $0.role = .guest
+            $0.isSessionConnected = true
+            $0.connectedHostName = "Talin's iPhone"
+            $0.players = PreviewData.players
+        })
+}

@@ -340,3 +340,39 @@ struct ResultsView: View {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
 }
+
+#Preview("Race HUD") {
+    ZStack {
+        Color.gray
+        RaceHUDView()
+    }
+    .environment(PreviewData.appState {
+        $0.phase = .racing
+        $0.players = PreviewData.players
+        $0.carStates = PreviewData.carStates
+        $0.leaderboard = PreviewData.leaderboard
+        $0.raceConfig.lapCount = 3
+        $0.elapsedTime = 42.3
+    })
+}
+
+#Preview("Placement Overlay") {
+    ZStack {
+        Color.gray
+        PlacementOverlay()
+    }
+    .environment(PreviewData.appState {
+        $0.phase = .placement
+        $0.planeDetectionStatus = .ready
+        $0.placementScale = 1.0
+    })
+}
+
+#Preview("Results") {
+    ResultsView()
+        .environment(PreviewData.appState {
+            $0.phase = .results
+            $0.players = PreviewData.players
+            $0.leaderboard = PreviewData.finishedLeaderboard
+        })
+}

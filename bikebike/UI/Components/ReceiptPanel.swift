@@ -58,3 +58,16 @@ struct PlayerAvatarGrid: View {
         }
     }
 }
+
+#Preview("Receipt Panel") {
+    ReceiptPanel {
+        VStack(spacing: 8) {
+            Text("Race Receipt")
+                .font(.headline)
+            ReceiptDashedDivider()
+            PlayerAvatarGrid(players: PreviewData.players)
+        }
+    }
+    .frame(width: 320)
+    .padding()
+}

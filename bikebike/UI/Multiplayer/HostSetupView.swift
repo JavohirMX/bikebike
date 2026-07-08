@@ -155,3 +155,21 @@ struct HostSetupView: View {
         }
     }
 }
+
+#Preview("Waiting for Guest") {
+    HostSetupView()
+        .environment(PreviewData.appState {
+            $0.phase = .hostSetup
+            $0.role = .host
+            $0.players = [PreviewData.host]
+        })
+}
+
+#Preview("Guest Connected") {
+    HostSetupView()
+        .environment(PreviewData.appState {
+            $0.phase = .hostSetup
+            $0.role = .host
+            $0.players = PreviewData.players
+        })
+}

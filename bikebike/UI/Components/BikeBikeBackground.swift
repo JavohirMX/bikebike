@@ -44,3 +44,13 @@ struct BikeBikeBackButton: View {
         .buttonStyle(.plain)
     }
 }
+
+#Preview("Background") {
+    ZStack {
+        BikeBikeBackground(blurRadius: 2)
+        VStack(spacing: 20) {
+            BikeBikeLogo(height: 72)
+            BikeBikeBackButton {}
+        }
+    }
+}

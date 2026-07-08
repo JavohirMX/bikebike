@@ -56,3 +56,8 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+#Preview("Home") {
+    HomeView()
+        .environment(PreviewData.appState())
+}
