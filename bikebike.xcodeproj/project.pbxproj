@@ -167,10 +167,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MBBD9BRZ67;
+				DEVELOPMENT_TEAM = BT787P7JGA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = bikebike/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BikeBike;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "BikeBike uses Bluetooth to find nearby multiplayer races when Wi-Fi discovery is unavailable.";
 				INFOPLIST_KEY_NSBonjourServices = _bikebike._tcp;
 				INFOPLIST_KEY_NSCameraUsageDescription = "BikeBike uses the camera to place racetracks in your environment.";
@@ -186,7 +187,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.javohirmx.bikebike;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realitivity.bikebike;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -205,10 +206,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = MBBD9BRZ67;
+				DEVELOPMENT_TEAM = BT787P7JGA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = bikebike/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BikeBike;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "BikeBike uses Bluetooth to find nearby multiplayer races when Wi-Fi discovery is unavailable.";
 				INFOPLIST_KEY_NSBonjourServices = _bikebike._tcp;
 				INFOPLIST_KEY_NSCameraUsageDescription = "BikeBike uses the camera to place racetracks in your environment.";
@@ -224,7 +226,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.javohirmx.bikebike;
+				PRODUCT_BUNDLE_IDENTIFIER = com.realitivity.bikebike;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
