@@ -7,6 +7,7 @@ import SwiftUI
 
 enum HomeBikeSceneMode: Equatable {
     case parked
+    case multiplayerParked
     case soloMoving
     case multiplayerMoving
 }
@@ -19,7 +20,7 @@ struct HomeBikeScene: View {
     @State private var idleBob: CGFloat = 0
     @State private var hasStarted = false
 
-    private let bikeHeight: CGFloat = 150
+    private let bikeHeight: CGFloat = 180
 
     var body: some View {
         GeometryReader { geometry in
@@ -37,20 +38,20 @@ struct HomeBikeScene: View {
                         )
                 }
 
-                if mode == .multiplayerMoving {
+                if mode == .multiplayerMoving || mode == .multiplayerParked {
                     bikeImage("rider-talin")
                         .frame(height: bikeHeight)
                         .position(
-                            x: joinBikeX(in: geometry, parkedX: parkedX, laneOffset: laneOffset),
+                            x: joinBikeX(in: geometry, parkedX: parkedX),
                             y: roadY + laneOffset
                         )
-                        .opacity(joinProgress > 0 ? 1 : 0)
+                        .opacity(mode == .multiplayerParked || joinProgress > 0 ? 1 : 0)
                 }
             }
         }
         .onAppear {
             switch mode {
-            case .parked:
+            case .parked, .multiplayerParked:
                 startIdleBob()
             case .soloMoving, .multiplayerMoving:
                 startDeparture()
@@ -61,7 +62,7 @@ struct HomeBikeScene: View {
             joinProgress = 0
             hasStarted = false
             switch newMode {
-            case .parked:
+            case .parked, .multiplayerParked:
                 startIdleBob()
             case .soloMoving, .multiplayerMoving:
                 startDeparture()
@@ -77,7 +78,7 @@ struct HomeBikeScene: View {
 
     private func leadBikeX(in geometry: GeometryProxy, parkedX: CGFloat) -> CGFloat {
         switch mode {
-        case .parked:
+        case .parked, .multiplayerParked:
             return parkedX
         case .soloMoving, .multiplayerMoving:
             let travel = geometry.size.width * 1.2
@@ -85,9 +86,13 @@ struct HomeBikeScene: View {
         }
     }
 
-    private func joinBikeX(in geometry: GeometryProxy, parkedX: CGFloat, laneOffset: CGFloat) -> CGFloat {
+    private func joinBikeX(in geometry: GeometryProxy, parkedX: CGFloat) -> CGFloat {
+        if mode == .multiplayerParked {
+            return parkedX
+        }
+
         let startX = -geometry.size.width * 0.15
-        let targetX = parkedX - 60 + leadProgress * geometry.size.width * 0.5
+        let targetX = parkedX
         return startX + (targetX - startX) * joinProgress
     }
 
@@ -116,13 +121,13 @@ struct HomeBikeScene: View {
     }
 }
 
-#Preview("Parked") {
+#Preview("Parked", traits: .landscapeLeft) {
     HomeBikeScene(mode: .parked)
         .frame(height: 220)
         .padding()
 }
 
-#Preview("Multiplayer Moving") {
+#Preview("Multiplayer Moving", traits: .landscapeLeft) {
     HomeBikeScene(mode: .multiplayerMoving)
         .frame(height: 220)
         .padding()

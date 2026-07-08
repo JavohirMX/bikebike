@@ -49,17 +49,17 @@ struct BikeBikePillButton: View {
                     .font(BikeBikeTheme.buttonFont(size: 29))
             }
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.28), radius: 0, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 2)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
             .padding(.horizontal, 20)
             .background(
                 Capsule()
                     .fill(fillColor)
-                    .shadow(color: shadowColor.opacity(0.55), radius: 0, x: 0, y: 3)
+                    .shadow(color: shadowColor.opacity(0.45), radius: 6, x: 0, y: 3)
                     .overlay(
                         Capsule()
-                            .stroke(strokeColor, lineWidth: 2)
+                            .stroke(strokeColor, lineWidth: 1)
                     )
             )
         }

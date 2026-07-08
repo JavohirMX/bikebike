@@ -18,13 +18,12 @@ struct HomeDepartureOverlay: View {
 
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 2)
+            BikeBikeBackground()
                 .opacity(0.85)
 
             HomeBikeScene(mode: sceneMode)
                 .padding(.horizontal, 24)
         }
-        .ignoresSafeArea()
         .allowsHitTesting(false)
         .onAppear {
             Task { @MainActor in

@@ -24,7 +24,6 @@ struct HomeView: View {
 
                 VStack(spacing: 20) {
                     BikeBikeLogo(height: 100)
-
                     VStack(spacing: 14) {
                         BikeBikePillButton(
                             title: "Soloplayer",
@@ -49,6 +48,7 @@ struct HomeView: View {
                     .frame(width: 280)
                 }
                 .bikeBikeScreenContent(maxWidth: 400)
+                .offset(x: 160)
 
                 Spacer()
             }

@@ -10,7 +10,10 @@ struct MultiplayerRolePickerView: View {
 
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 2)
+            BikeBikeBackground()
+
+            HomeBikeScene(mode: .multiplayerParked)
+                .padding(.horizontal, 24)
 
             VStack {
                 HStack {
@@ -44,7 +47,7 @@ struct MultiplayerRolePickerView: View {
     }
 }
 
-#Preview("Role Picker") {
+#Preview("Role Picker", traits: .landscapeLeft) {
     MultiplayerRolePickerView()
         .environment(PreviewData.appState { $0.phase = .multiplayerRolePicker })
 }
