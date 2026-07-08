@@ -37,23 +37,15 @@ struct MultiplayerSetupShell<Left: View, Right: View, Banner: View>: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
 
-            GeometryReader { geometry in
-                HStack(alignment: .top, spacing: 0) {
-                    ScrollView {
-                        leftColumn()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(width: geometry.size.width * 0.42)
-
-                    Divider()
-                        .padding(.vertical, 4)
-
-                    rightColumn()
-                        .frame(width: geometry.size.width * 0.58 - 1)
-                        .frame(maxHeight: .infinity)
-                }
-                .padding(.horizontal, 16)
-            }
+            AdaptiveColumnLayout(
+                leftRatio: 0.42,
+                showsDivider: true,
+                scrollLeftWhenWide: true,
+                left: { leftColumn() },
+                right: { rightColumn() }
+            )
+            .frame(maxHeight: .infinity)
+            .padding(.horizontal, 16)
         }
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

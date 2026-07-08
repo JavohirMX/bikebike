@@ -1,0 +1,165 @@
+//
+//  BikeMovementModel.swift
+//  bikebike
+//
+
+import simd
+
+struct BikeMovementState {
+    var speed: Float
+    var pedalAmount: Float
+    var yaw: Float
+    var pitch: Float
+}
+
+struct BikeMovementInput {
+    var steer: Float
+    var gasPressed: Bool
+    var brake: Float
+}
+
+struct BikeMovementResult {
+    var localPosition: SIMD3<Float>
+    var orientation: simd_quatf
+    var speed: Float
+    var pedalAmount: Float
+    var yaw: Float
+    var pitch: Float
+    var hitWall: Bool
+}
+
+enum BikeMovementModel {
+    static let maxSpeed: Float = 0.55
+    static let thrustForce: Float = 2.0
+    static let brakeForce: Float = 4.0
+    static let rollingDrag: Float = 1.5
+    static let wallSlideFriction: Float = 0.8
+
+    static let maxYawRate: Float = 2.2
+    static let minSteerSpeed: Float = 0.08
+    static let heightSmoothing: Float = 14
+    static let pitchSmoothing: Float = 12
+    static let pedalRampUp: Float = 0.5
+    static let pedalRampDown: Float = 1.5
+    static let maxLean: Float = 0.35
+    static let fallRecoveryThreshold: Float = 0.15
+
+    static func integrate(
+        state: BikeMovementState,
+        input: BikeMovementInput,
+        localPosition: SIMD3<Float>,
+        trackGeometry: any RaceTrackGeometry,
+        wheelbase: Float,
+        hintArcLength: Float?,
+        deltaTime: Float
+    ) -> BikeMovementResult {
+        var speed = state.speed
+        var pedalAmount = state.pedalAmount
+        var yaw = state.yaw
+        var pitch = state.pitch
+        var localPos = localPosition
+
+        if input.gasPressed {
+            pedalAmount = min(1, pedalAmount + pedalRampUp * deltaTime)
+        } else {
+            pedalAmount = max(0, pedalAmount - pedalRampDown * deltaTime)
+        }
+
+        if pedalAmount > 0.001 {
+            speed += thrustForce * pedalAmount * deltaTime
+        }
+        if input.brake > 0.05 {
+            speed -= brakeForce * input.brake * deltaTime
+        }
+        if pedalAmount <= 0.001, input.brake <= 0.05 {
+            speed *= exp(-rollingDrag * deltaTime)
+        }
+        speed = max(0, min(maxSpeed, speed))
+
+        let steerFactor = speedSteerFactor(speed)
+        if abs(input.steer) > 0.02, steerFactor > 0 {
+            yaw -= input.steer * maxYawRate * steerFactor * deltaTime
+        }
+
+        let forwardXZ = forwardDirection(yaw: yaw)
+        localPos.x += forwardXZ.x * speed * deltaTime
+        localPos.z += forwardXZ.y * speed * deltaTime
+
+        let clampResult = trackGeometry.clampToCorridor(localPos)
+        var hitWall = false
+        if clampResult.hitWall {
+            localPos.x = clampResult.position.x
+            localPos.z = clampResult.position.y
+            speed *= wallSlideFriction
+            hitWall = true
+        }
+
+        let halfWheelbase = wheelbase / 2
+        let frontSample = SIMD3(
+            localPos.x + forwardXZ.x * halfWheelbase,
+            localPos.y,
+            localPos.z + forwardXZ.y * halfWheelbase
+        )
+        let rearSample = SIMD3(
+            localPos.x - forwardXZ.x * halfWheelbase,
+            localPos.y,
+            localPos.z - forwardXZ.y * halfWheelbase
+        )
+
+        let frontY = trackGeometry.surfaceHeight(at: frontSample, hintArcLength: hintArcLength)
+        let rearY = trackGeometry.surfaceHeight(at: rearSample, hintArcLength: hintArcLength)
+        let targetChassisY = (frontY + rearY) / 2
+        let targetPitch = atan2(frontY - rearY, max(wheelbase, 0.001))
+
+        let heightBlend = 1 - exp(-heightSmoothing * deltaTime)
+        let pitchBlend = 1 - exp(-pitchSmoothing * deltaTime)
+        localPos.y = simd_mix(localPos.y, targetChassisY, heightBlend)
+        pitch = simd_mix(pitch, targetPitch, pitchBlend)
+
+        if localPos.y < -fallRecoveryThreshold {
+            localPos.y = targetChassisY
+        }
+
+        let roll = -input.steer * maxLean * steerFactor
+        let orientation = composeOrientation(yaw: yaw, pitch: pitch, roll: roll)
+
+        return BikeMovementResult(
+            localPosition: localPos,
+            orientation: orientation,
+            speed: speed,
+            pedalAmount: pedalAmount,
+            yaw: yaw,
+            pitch: pitch,
+            hitWall: hitWall
+        )
+    }
+
+    static func initialState(from orientation: simd_quatf) -> BikeMovementState {
+        BikeMovementState(
+            speed: 0,
+            pedalAmount: 0,
+            yaw: yaw(from: orientation),
+            pitch: 0
+        )
+    }
+
+    static func yaw(from orientation: simd_quatf) -> Float {
+        let forward = orientation.act(SIMD3<Float>(0, 0, -1))
+        return atan2(forward.x, -forward.z)
+    }
+
+    private static func speedSteerFactor(_ speed: Float) -> Float {
+        min(1, max(0, speed / minSteerSpeed))
+    }
+
+    private static func forwardDirection(yaw: Float) -> SIMD2<Float> {
+        SIMD2(sin(yaw), -cos(yaw))
+    }
+
+    private static func composeOrientation(yaw: Float, pitch: Float, roll: Float) -> simd_quatf {
+        let yawQuat = simd_quatf(angle: yaw, axis: SIMD3(0, 1, 0))
+        let pitchQuat = simd_quatf(angle: pitch, axis: SIMD3(1, 0, 0))
+        let rollQuat = simd_quatf(angle: roll, axis: SIMD3(0, 0, 1))
+        return yawQuat * pitchQuat * rollQuat
+    }
+}

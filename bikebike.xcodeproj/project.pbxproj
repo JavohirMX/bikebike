@@ -65,6 +65,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0955A9B22FEEE258009005AB /* Build configuration list for PBXNativeTarget "bikebike" */;
 			buildPhases = (
+				0955A9C02FEEE300009005AB /* Extract Racetrack Centerline */,
 				0955A9A12FEEE257009005AB /* Sources */,
 				0955A9A22FEEE257009005AB /* Frameworks */,
 				0955A9A32FEEE257009005AB /* Resources */,
@@ -126,6 +127,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0955A9C02FEEE300009005AB /* Extract Racetrack Centerline */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/bikebike/Resources/racetrack.usdz",
+				"$(SRCROOT)/scripts/extract_centerline.py",
+			);
+			name = "Extract Racetrack Centerline";
+			outputPaths = (
+				"$(SRCROOT)/bikebike/Resources/racetrack_centerline.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/scripts/extract_centerline.py\" \"$SRCROOT/bikebike/Resources/racetrack.usdz\" \"$SRCROOT/bikebike/Resources/racetrack_centerline.json\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0955A9A12FEEE257009005AB /* Sources */ = {

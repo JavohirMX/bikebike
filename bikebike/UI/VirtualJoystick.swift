@@ -7,7 +7,6 @@ import SwiftUI
 
 struct VirtualJoystick: View {
     @Binding var steer: Float
-    @Binding var throttle: Float
 
     private let size: CGFloat = 120
     private let knobSize: CGFloat = 48
@@ -33,42 +32,32 @@ struct VirtualJoystick: View {
                 .onChanged { value in
                     let maxRadius = (size - knobSize) / 2
                     let dx = value.translation.width
-                    let dy = value.translation.height
-                    let dist = sqrt(dx * dx + dy * dy)
-                    let clampedDist = min(dist, maxRadius)
-                    let angle = atan2(dy, dx)
-                    dragOffset = CGSize(
-                        width: cos(angle) * clampedDist,
-                        height: sin(angle) * clampedDist
-                    )
-                    var nx = Float(dx / maxRadius)
-                    var ny = Float(-dy / maxRadius)
+                    let clampedX = max(-maxRadius, min(maxRadius, dx))
+                    dragOffset = CGSize(width: clampedX, height: 0)
+                    var nx = Float(clampedX / maxRadius)
                     if abs(nx) < deadZone { nx = 0 }
-                    if abs(ny) < deadZone { ny = 0 }
                     steer = max(-1, min(1, nx))
-                    throttle = max(0, min(1, ny))
                 }
                 .onEnded { _ in
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         dragOffset = .zero
                     }
                     steer = 0
-                    throttle = 0
                 }
         )
     }
 }
 
 struct GasBrakeControls: View {
-    @Binding var throttle: Float
+    @Binding var gasPressed: Bool
     @Binding var brake: Float
 
     var body: some View {
         VStack(spacing: 16) {
-            controlButton(label: "GAS", active: throttle > 0) {
-                throttle = 1
+            controlButton(label: "GAS", active: gasPressed) {
+                gasPressed = true
             } onRelease: {
-                throttle = 0
+                gasPressed = false
             }
             controlButton(label: "BRK", active: brake > 0) {
                 brake = 1

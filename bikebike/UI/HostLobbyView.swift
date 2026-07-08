@@ -133,6 +133,11 @@ private struct LobbyShell: View {
                 .padding(.horizontal)
                 .disabled(appState.role != .host)
 
+            if appState.role == .host && !appState.trackPlaced {
+                TrackOptionPicker()
+                    .padding(.horizontal)
+            }
+
             Text("Players")
                 .font(.subheadline.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,6 +176,7 @@ private struct LobbyShell: View {
             }
             Spacer()
         }
+        .bikeBikeScreenContent(maxWidth: 520)
         .background(Color(.systemBackground))
     }
 }

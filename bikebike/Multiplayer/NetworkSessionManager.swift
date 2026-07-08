@@ -72,16 +72,16 @@ final class NetworkSessionManager {
             listener.service = NWListener.Service(name: nil, type: Self.bonjourType, domain: nil, txtRecord: txt)
 
             listener.stateUpdateHandler = { [weak self] state in
-                Task { @MainActor in
-                    guard let self else { return }
+                Task { @MainActor [weak self] in
+                    guard let manager = self else { return }
                     if case .failed(let error) = state {
-                        self.delegate?.sessionDidFailToStart(error: error)
+                        manager.delegate?.sessionDidFailToStart(error: error)
                     }
                 }
             }
 
             listener.newConnectionHandler = { [weak self] connection in
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     self?.acceptIncoming(connection)
                 }
             }
@@ -98,15 +98,15 @@ final class NetworkSessionManager {
         let parameters = tcpParameters()
         let browser = NWBrowser(for: .bonjourWithTXTRecord(type: Self.bonjourType, domain: nil), using: parameters)
         browser.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor in
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let manager = self else { return }
                 if case .failed(let error) = state {
-                    self.delegate?.sessionDidFailToStart(error: error)
+                    manager.delegate?.sessionDidFailToStart(error: error)
                 }
             }
         }
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.handleBrowseResults(results)
             }
         }
@@ -231,18 +231,18 @@ final class NetworkSessionManager {
         )
 
         connection.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor in
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let manager = self else { return }
                 switch state {
                 case .ready:
-                    self.markConnectionReady(connection)
+                    manager.markConnectionReady(connection)
                     if announceConnect {
-                        self.markConnected(peerId: peerId)
-                        self.delegate?.sessionPeerConnected(peerId)
+                        manager.markConnected(peerId: peerId)
+                        manager.delegate?.sessionPeerConnected(peerId)
                     }
-                    self.receiveLoop(connection: connection)
+                    manager.receiveLoop(connection: connection)
                 case .failed, .cancelled:
-                    self.removeConnection(connection)
+                    manager.removeConnection(connection)
                 default:
                     break
                 }
@@ -264,16 +264,16 @@ final class NetworkSessionManager {
 
     private func receiveLoop(connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 256 * 1024) { [weak self] data, _, isComplete, error in
-            Task { @MainActor in
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let manager = self else { return }
                 if let data, !data.isEmpty {
-                    self.handleReceived(data, connection: connection)
+                    manager.handleReceived(data, connection: connection)
                 }
                 if isComplete || error != nil {
-                    self.removeConnection(connection)
+                    manager.removeConnection(connection)
                     return
                 }
-                self.receiveLoop(connection: connection)
+                manager.receiveLoop(connection: connection)
             }
         }
     }
@@ -344,13 +344,13 @@ final class NetworkSessionManager {
         connections[key] = state
 
         connection.send(content: data, completion: .contentProcessed { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let manager = self else { return }
                 let key = ObjectIdentifier(connection)
-                guard var state = self.connections[key] else { return }
+                guard var state = manager.connections[key] else { return }
                 state.isSendInFlight = false
-                self.connections[key] = state
-                self.flushCoalescedSend(on: connection)
+                manager.connections[key] = state
+                manager.flushCoalescedSend(on: connection)
             }
         })
     }
@@ -369,7 +369,7 @@ final class NetworkSessionManager {
             let session = SessionInfo(
                 sessionId: sessionId,
                 hostName: hostName,
-                trackId: txt["track"] ?? ProceduralTrack.presetId,
+                trackId: txt["track"] ?? RaceTrackCatalog.defaultTrackId,
                 lapCount: Int(txt["laps"] ?? "3") ?? 3,
                 playerCount: 1,
                 maxPlayers: 2,

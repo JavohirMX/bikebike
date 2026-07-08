@@ -37,16 +37,16 @@ struct HostSetupView: View {
                     .padding(.bottom, 8)
                 }
 
-                HStack(alignment: .top, spacing: 24) {
-                    receiptColumn
-                        .frame(maxWidth: .infinity)
-
-                    instructionsColumn
-                        .frame(maxWidth: .infinity)
-                }
-                .padding(.horizontal, 24)
+                AdaptiveColumnLayout(
+                    leftRatio: 0.5,
+                    columnSpacing: 24,
+                    left: { receiptColumn },
+                    right: { instructionsColumn }
+                )
+                .frame(minHeight: 420)
                 .padding(.bottom, 16)
             }
+            .bikeBikeScreenContent(maxWidth: 900)
         }
         .sheet(isPresented: Binding(
             get: { appState.showConnectionHelp },
@@ -99,6 +99,10 @@ struct HostSetupView: View {
                 instructionRow(2, "Click the join a team option")
                 instructionRow(3, "Scan the QR to get in to the group")
                 instructionRow(4, "Enter user nickname")
+            }
+
+            if !appState.trackPlaced {
+                TrackOptionPicker()
             }
 
             Spacer(minLength: 0)

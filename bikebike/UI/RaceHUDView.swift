@@ -84,13 +84,12 @@ struct RaceHUDView: View {
     private var controls: some View {
         HStack(alignment: .bottom) {
             GasBrakeControls(
-                throttle: Bindable(appState).throttleInput,
+                gasPressed: Bindable(appState).gasPressed,
                 brake: Bindable(appState).brakeInput
             )
             Spacer()
             VirtualJoystick(
-                steer: Bindable(appState).steerInput,
-                throttle: Bindable(appState).throttleInput
+                steer: Bindable(appState).steerInput
             )
         }
     }
@@ -257,23 +256,35 @@ struct ResultsView: View {
                         }
                     }
                 }
-                .frame(maxWidth: 520)
+                .bikeBikeScreenContent(maxWidth: 520)
 
-                HStack(spacing: 16) {
-                    BikeBikePillButton(title: "Exit", style: .blue) {
-                        appState.goHome()
-                    }
-                    .frame(width: 200)
+                ViewThatFits {
+                    HStack(spacing: 16) {
+                        BikeBikePillButton(title: "Exit", style: .blue) {
+                            appState.goHome()
+                        }
+                        .frame(width: 200)
 
-                    BikeBikePillButton(title: "Play Again", style: .yellow) {
-                        appState.playAgain()
+                        BikeBikePillButton(title: "Play Again", style: .yellow) {
+                            appState.playAgain()
+                        }
+                        .frame(width: 200)
                     }
-                    .frame(width: 200)
+
+                    VStack(spacing: 12) {
+                        BikeBikePillButton(title: "Exit", style: .blue) {
+                            appState.goHome()
+                        }
+
+                        BikeBikePillButton(title: "Play Again", style: .yellow) {
+                            appState.playAgain()
+                        }
+                    }
                 }
+                .bikeBikeScreenContent(maxWidth: 520)
 
                 Spacer()
             }
-            .padding(.horizontal, 32)
         }
     }
 

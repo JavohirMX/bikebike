@@ -37,13 +37,15 @@ struct SoloLapSelectView: View {
                             )
                         )
 
+                        TrackOptionPicker()
+
                         BikeBikePillButton(title: "Place Track", style: .yellow) {
                             appState.confirmSoloLapSelect()
                         }
                         .padding(.top, 8)
                     }
                 }
-                .frame(maxWidth: 380)
+                .bikeBikeScreenContent(maxWidth: 380)
 
                 Spacer()
             }

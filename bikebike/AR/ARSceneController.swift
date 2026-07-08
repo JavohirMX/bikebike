@@ -11,6 +11,7 @@ import UIKit
 struct PlacementResult {
     let transform: TransformPacket
     let scale: Float
+    let presetId: String
 }
 
 @MainActor
@@ -21,12 +22,15 @@ final class ARSceneController {
     private var ghostTrackEntity: Entity?
     private var cars: [String: Entity] = [:]
     private var carSpeeds: [String: Float] = [:]
+    private var bikeMovementStates: [String: BikeMovementState] = [:]
     private var remoteCarStates: [String: RemoteCarState] = [:]
     private var lastMeasuredArc: [String: Float] = [:]
     private var distanceSinceLap: [String: Float] = [:]
     private var passedCheckpoint: [String: Bool] = [:]
     private var lastLapTimestamp: [String: TimeInterval] = [:]
     private var updateSubscription: (any Cancellable)?
+    private var selectedTrackId: String = RaceTrackCatalog.defaultTrackId
+    private var trackGeometry: any RaceTrackGeometry = ProceduralTrackDefinition()
 
     var isPlacementMode = false
     var trackConfirmed = false
@@ -35,7 +39,7 @@ final class ARSceneController {
     var onRelocalizationReady: (() -> Void)?
 
     private var awaitingRelocalization = false
-    private var pendingTrack: (transform: TransformPacket, scale: Float)?
+    private var pendingTrack: (transform: TransformPacket, scale: Float, presetId: String)?
     private var pendingWorldMap: ARWorldMap?
 
     var isARViewAttached: Bool { arView != nil }
@@ -45,14 +49,7 @@ final class ARSceneController {
     private(set) var hasDetectedPlane = false
     private(set) var trackingQuality: ARTrackingQuality = .normal
 
-    private let maxSpeed: Float = 0.55
-    private let thrustForce: Float = 2.0
-    private let brakeForce: Float = 4.0
-    private let steerTorque: Float = 1.4
-    private let wallSlideFriction: Float = 0.8
     private let minLapTime: TimeInterval = 1.5
-    private let minLapDistance: Float = OvalTrackGeometry.perimeterLength * 0.75
-    private let checkpointDistance: Float = OvalTrackGeometry.perimeterLength * 0.45
     private let maxProgressStepPerFrame: Float = 0.20
 
     private static let minPlacementScale: Float = 0.6
@@ -68,8 +65,15 @@ final class ARSceneController {
         arView.session.delegate = sessionDelegate
         Task { @MainActor in
             await CarModelLoader.preload()
+            await RaceTrackFactory.preloadAssets()
+            refreshTrackGeometry()
         }
         flushPendingState(session: arView.session)
+    }
+
+    func setSelectedTrack(id: String) {
+        selectedTrackId = RaceTrackCatalog.normalizedTrackId(id)
+        refreshTrackGeometry()
     }
 
     func flushPendingState(session: ARSession) {
@@ -79,7 +83,7 @@ final class ARSceneController {
         }
         if let pending = pendingTrack {
             pendingTrack = nil
-            placeTrackFromSync(transform: pending.transform, scale: pending.scale)
+            placeTrackFromSync(transform: pending.transform, scale: pending.scale, presetId: pending.presetId)
         }
     }
 
@@ -183,14 +187,16 @@ final class ARSceneController {
         guard let ghost = ghostAnchor else { return nil }
         let worldTransform = ghost.transformMatrix(relativeTo: nil)
         let scale = placementScale
+        let presetId = RaceTrackFactory.resolvedTrackId(for: selectedTrackId)
         removeGhost()
         removeTrack()
 
         let anchor = AnchorEntity(world: worldTransform)
-        let track = ProceduralTrack.makeOvalLoopTrack(scale: scale)
+        let track = RaceTrackFactory.makeTrackEntity(for: presetId, scale: scale)
         anchor.addChild(track)
         arView?.scene.addAnchor(anchor)
         trackAnchor = anchor
+        trackGeometry = RaceTrackFactory.geometry(for: presetId)
 
         isPlacementMode = false
         trackConfirmed = true
@@ -199,7 +205,7 @@ final class ARSceneController {
 
         let pos = SIMD3<Float>(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
         let rot = simd_quatf(worldTransform)
-        return PlacementResult(transform: TransformPacket(position: pos, rotation: rot), scale: scale)
+        return PlacementResult(transform: TransformPacket(position: pos, rotation: rot), scale: scale, presetId: presetId)
     }
 
     private func tryInitialGhostPlacement() {
@@ -217,8 +223,7 @@ final class ARSceneController {
         matrix.columns.3 = SIMD4(position.x, position.y, position.z, 1)
 
         let ghost = AnchorEntity(world: matrix)
-        let track = ProceduralTrack.makeOvalLoopTrack(scale: placementScale)
-        track.components.set(OpacityComponent(opacity: 0.55))
+        let track = RaceTrackFactory.makeTrackEntity(for: selectedTrackId, scale: placementScale, opacity: 0.55)
         ghost.addChild(track)
         arView.scene.addAnchor(ghost)
         ghostAnchor = ghost
@@ -232,9 +237,10 @@ final class ARSceneController {
         ghostAnchor.transform.matrix = matrix
     }
 
-    func placeTrackFromSync(transform: TransformPacket, scale: Float = 1.0) {
+    func placeTrackFromSync(transform: TransformPacket, scale: Float = 1.0, presetId: String? = nil) {
+        let trackId = presetId ?? selectedTrackId
         guard arView != nil else {
-            pendingTrack = (transform, scale)
+            pendingTrack = (transform, scale, trackId)
             return
         }
         removeGhost()
@@ -244,10 +250,12 @@ final class ARSceneController {
         matrix.columns.3 = SIMD4(transform.position.x, transform.position.y, transform.position.z, 1)
 
         let anchor = AnchorEntity(world: matrix)
-        let track = ProceduralTrack.makeOvalLoopTrack(scale: scale)
+        let track = RaceTrackFactory.makeTrackEntity(for: trackId, scale: scale)
         anchor.addChild(track)
         arView?.scene.addAnchor(anchor)
         trackAnchor = anchor
+        selectedTrackId = RaceTrackCatalog.normalizedTrackId(trackId)
+        trackGeometry = RaceTrackFactory.geometry(for: trackId)
         trackConfirmed = true
         isPlacementMode = false
     }
@@ -288,22 +296,15 @@ final class ARSceneController {
         let car = await CarModelLoader.makeCar(color: color)
         car.name = "Car_\(playerId)"
 
-        let lateralOffset = Float(gridIndex) * 0.06 - 0.03
-        let spawnT = max(0, OvalTrackGeometry.finishLineParameter - 0.035)
-        let tangent = OvalTrackGeometry.centerlineTangent(t: spawnT)
-        let right = OvalTrackGeometry.centerlineRight(t: spawnT)
-        let base = OvalTrackGeometry.centerlinePoint(t: spawnT)
-        let spawnXZ = base + right * lateralOffset
-        let start = SIMD3(spawnXZ.x, OvalTrackGeometry.startGridOffset.y, spawnXZ.y)
-        car.position = start
-
-        let yaw = atan2(tangent.y, tangent.x)
-        car.orientation = simd_quatf(angle: -yaw + .pi / 2, axis: SIMD3(0, 1, 0))
+        let spawn = trackGeometry.spawnTransform(gridIndex: gridIndex)
+        car.position = spawn.position
+        car.orientation = simd_quatf(angle: spawn.orientationAngle, axis: SIMD3(0, 1, 0))
 
         trackAnchor.addChild(car)
         cars[playerId] = car
         carSpeeds[playerId] = 0
-        let spawnArc = OvalTrackGeometry.arcLength(for: start)
+        bikeMovementStates[playerId] = BikeMovementModel.initialState(from: car.orientation)
+        let spawnArc = trackGeometry.arcLength(for: spawn.position)
         lastMeasuredArc[playerId] = spawnArc
         distanceSinceLap[playerId] = 0
         passedCheckpoint[playerId] = false
@@ -314,6 +315,7 @@ final class ARSceneController {
         cars[playerId]?.removeFromParent()
         cars.removeValue(forKey: playerId)
         carSpeeds.removeValue(forKey: playerId)
+        bikeMovementStates.removeValue(forKey: playerId)
         remoteCarStates.removeValue(forKey: playerId)
         lastMeasuredArc.removeValue(forKey: playerId)
         distanceSinceLap.removeValue(forKey: playerId)
@@ -325,35 +327,33 @@ final class ARSceneController {
         for id in cars.keys { removeCar(playerId: id) }
     }
 
-    func applyInput(playerId: String, steer: Float, throttle: Float, brake: Float, deltaTime: Float) {
-        guard let car = cars[playerId] else { return }
+    func applyInput(playerId: String, steer: Float, gasPressed: Bool, brake: Float, deltaTime: Float) {
+        guard let car = cars[playerId], let trackAnchor else { return }
 
-        if abs(steer) > 0.05 {
-            car.orientation *= simd_quatf(angle: -steer * steerTorque * deltaTime, axis: SIMD3(0, 1, 0))
-        }
-
-        var speed = carSpeeds[playerId] ?? 0
-        if throttle > 0.05 {
-            speed += thrustForce * throttle * deltaTime
-        }
-        if brake > 0.05 {
-            speed -= brakeForce * brake * deltaTime
-        }
-        speed = max(0, min(maxSpeed, speed))
-        carSpeeds[playerId] = speed
-
-        let forward = -SIMD3<Float>(car.transform.matrix.columns.2.x, 0, car.transform.matrix.columns.2.z)
-        let forwardDir = simd_length_squared(forward) > 0.0001 ? simd_normalize(forward) : SIMD3(0, 0, -1)
         let previousLocal = localCarPosition(car)
+        var movementState = bikeMovementStates[playerId] ?? BikeMovementModel.initialState(from: car.orientation)
+        movementState.speed = carSpeeds[playerId] ?? movementState.speed
 
-        car.position += forwardDir * speed * deltaTime
+        let result = BikeMovementModel.integrate(
+            state: movementState,
+            input: BikeMovementInput(steer: steer, gasPressed: gasPressed, brake: brake),
+            localPosition: previousLocal,
+            trackGeometry: trackGeometry,
+            wheelbase: trackGeometry.carSize.z,
+            hintArcLength: lastMeasuredArc[playerId],
+            deltaTime: deltaTime
+        )
 
-        let hitWall = enforceTrackBounds(car: car, previousLocal: previousLocal)
-        if hitWall {
-            carSpeeds[playerId] = (carSpeeds[playerId] ?? 0) * wallSlideFriction
-        }
+        car.setPosition(trackAnchor.convert(position: result.localPosition, to: nil), relativeTo: nil)
+        car.orientation = result.orientation
+        carSpeeds[playerId] = result.speed
+        bikeMovementStates[playerId] = BikeMovementState(
+            speed: result.speed,
+            pedalAmount: result.pedalAmount,
+            yaw: result.yaw,
+            pitch: result.pitch
+        )
 
-        snapCarHeight(car)
         checkFinishLineCrossing(playerId: playerId, car: car, previousLocal: previousLocal)
     }
 
@@ -401,8 +401,37 @@ final class ARSceneController {
 
             car.position = simd_mix(car.position, targetPos, SIMD3(repeating: alpha))
             car.orientation = simd_slerp(car.orientation, targetRot, alpha)
-            snapCarHeight(car)
+            alignRemoteCarToTrack(car, playerId: playerId)
         }
+    }
+
+    private func alignRemoteCarToTrack(_ car: Entity, playerId: String) {
+        guard let trackAnchor else { return }
+        var localPos = trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
+        let yaw = BikeMovementModel.yaw(from: car.orientation(relativeTo: trackAnchor))
+        let forwardXZ = SIMD2(sin(yaw), -cos(yaw))
+        let halfWheelbase = trackGeometry.carSize.z / 2
+
+        let frontSample = SIMD3(
+            localPos.x + forwardXZ.x * halfWheelbase,
+            localPos.y,
+            localPos.z + forwardXZ.y * halfWheelbase
+        )
+        let rearSample = SIMD3(
+            localPos.x - forwardXZ.x * halfWheelbase,
+            localPos.y,
+            localPos.z - forwardXZ.y * halfWheelbase
+        )
+        let hint = lastMeasuredArc[playerId]
+        let frontY = trackGeometry.surfaceHeight(at: frontSample, hintArcLength: hint)
+        let rearY = trackGeometry.surfaceHeight(at: rearSample, hintArcLength: hint)
+        localPos.y = (frontY + rearY) / 2
+        let pitch = atan2(frontY - rearY, max(trackGeometry.carSize.z, 0.001))
+        let orientation = simd_quatf(angle: yaw, axis: SIMD3(0, 1, 0))
+            * simd_quatf(angle: pitch, axis: SIMD3(1, 0, 0))
+
+        car.setPosition(trackAnchor.convert(position: localPos, to: nil), relativeTo: nil)
+        car.orientation = orientation
     }
 
     func updateRemoteCar(playerId: String, transform: TransformPacket) {
@@ -431,13 +460,14 @@ final class ARSceneController {
     }
 
     private func updateLapProgress(playerId: String, localPos: SIMD3<Float>) {
-        let measured = OvalTrackGeometry.arcLength(for: localPos)
+        let hint = lastMeasuredArc[playerId]
+        let measured = trackGeometry.arcLength(for: localPos, hintArcLength: hint)
         guard let lastMeasured = lastMeasuredArc[playerId] else {
             lastMeasuredArc[playerId] = measured
             return
         }
 
-        let delta = OvalTrackGeometry.forwardArcDelta(from: lastMeasured, to: measured)
+        let delta = trackGeometry.forwardArcDelta(from: lastMeasured, to: measured)
         guard delta > 0, delta <= maxProgressStepPerFrame else { return }
 
         lastMeasuredArc[playerId] = measured
@@ -455,9 +485,10 @@ final class ARSceneController {
             passedCheckpoint[playerId] = true
         }
 
-        let measured = OvalTrackGeometry.arcLength(for: local)
-        let finish = OvalTrackGeometry.finishArcLength
-        let nearFinish = OvalTrackGeometry.forwardArcDelta(from: finish, to: measured) < 0.12
+        let hint = lastMeasuredArc[playerId]
+        let measured = trackGeometry.arcLength(for: local, hintArcLength: hint)
+        let finish = trackGeometry.finishArcLength
+        let nearFinish = trackGeometry.forwardArcDelta(from: finish, to: measured) < 0.12
 
         if passedCheckpoint[playerId] == true, distance >= minLapDistance, nearFinish {
             let now = Date().timeIntervalSince1970
@@ -476,30 +507,16 @@ final class ARSceneController {
         return trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
     }
 
-    @discardableResult
-    private func enforceTrackBounds(car: Entity, previousLocal: SIMD3<Float>) -> Bool {
-        guard let trackAnchor else { return false }
-        var localPos = trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
-        let clampResult = OvalTrackGeometry.clampToCorridor(localPos)
-
-        if clampResult.hitWall {
-            localPos.x = clampResult.position.x
-            localPos.z = clampResult.position.y
-            localPos.y = max(OvalTrackGeometry.surfaceY, previousLocal.y)
-            car.setPosition(trackAnchor.convert(position: localPos, to: nil), relativeTo: nil)
-        }
-
-        return clampResult.hitWall
+    private var minLapDistance: Float {
+        trackGeometry.perimeterLength * 0.75
     }
 
-    private func snapCarHeight(_ car: Entity) {
-        guard let trackAnchor else { return }
-        var localPos = trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
-        let surfaceY = OvalTrackGeometry.surfaceY
-        if localPos.y < 0.02 || abs(localPos.y - surfaceY) > 0.05 {
-            localPos.y = surfaceY
-            car.setPosition(trackAnchor.convert(position: localPos, to: nil), relativeTo: nil)
-        }
+    private var checkpointDistance: Float {
+        trackGeometry.perimeterLength * 0.45
+    }
+
+    private func refreshTrackGeometry() {
+        trackGeometry = RaceTrackFactory.geometry(for: selectedTrackId)
     }
 
     private func removeTrack() {

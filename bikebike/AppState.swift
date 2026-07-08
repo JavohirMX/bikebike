@@ -35,6 +35,7 @@ final class AppState: RaceSessionDelegate {
     var relocalizationMessage: String?
     private var lastTrackTransform: TransformPacket?
     private var lastTrackScale: Float = 1.0
+    private var lastTrackPresetId: String = RaceTrackCatalog.defaultTrackId
     private var worldMapChunks: [Int: Data] = [:]
     private var expectedWorldMapChunks = 0
     private var pendingTrackPayload: TrackPlacedPayload?
@@ -59,7 +60,7 @@ final class AppState: RaceSessionDelegate {
 
     // Input state
     var steerInput: Float = 0
-    var throttleInput: Float = 0
+    var gasPressed: Bool = false
     var brakeInput: Float = 0
 
     private var poseTimer: Timer?
@@ -76,6 +77,7 @@ final class AppState: RaceSessionDelegate {
 
     init() {
         raceSession.delegate = self
+        arController.setSelectedTrack(id: raceConfig.trackId)
         arController.onLapCrossed = { [weak self] playerId in
             self?.handleLapCrossed(playerId: playerId)
         }
@@ -95,7 +97,7 @@ final class AppState: RaceSessionDelegate {
     func exitRace() {
         stopTimers()
         steerInput = 0
-        throttleInput = 0
+        gasPressed = false
         brakeInput = 0
         arController.removeAllCars()
         carStates = []
@@ -137,6 +139,9 @@ final class AppState: RaceSessionDelegate {
         trackPlaced = false
         lastTrackTransform = nil
         lastTrackScale = 1.0
+        lastTrackPresetId = RaceTrackCatalog.defaultTrackId
+        raceConfig = RaceConfig(trackId: RaceTrackCatalog.defaultTrackId, lapCount: 3)
+        arController.setSelectedTrack(id: raceConfig.trackId)
         placementScale = 1.0
         resetWorldMapState()
         pendingRaceStart = false
@@ -233,7 +238,8 @@ final class AppState: RaceSessionDelegate {
 
     func startSoloPractice() {
         role = .solo
-        raceConfig = RaceConfig(lapCount: 3)
+        raceConfig = RaceConfig(trackId: RaceTrackCatalog.defaultTrackId, lapCount: 3)
+        arController.setSelectedTrack(id: raceConfig.trackId)
         players = [localPlayer(isHost: true)]
         placementError = nil
         placementScale = 1.0
@@ -241,6 +247,7 @@ final class AppState: RaceSessionDelegate {
     }
 
     func confirmSoloLapSelect() {
+        arController.setSelectedTrack(id: raceConfig.trackId)
         pendingPlacementStart = true
         phase = .placement
     }
@@ -248,7 +255,7 @@ final class AppState: RaceSessionDelegate {
     func playAgain() {
         stopTimers()
         steerInput = 0
-        throttleInput = 0
+        gasPressed = false
         brakeInput = 0
         arController.removeAllCars()
         carStates = []
@@ -257,6 +264,7 @@ final class AppState: RaceSessionDelegate {
         elapsedTime = 0
         trackPlaced = false
         lastTrackTransform = nil
+        lastTrackPresetId = raceConfig.trackId
         placementScale = 1.0
         placementError = nil
 
@@ -340,11 +348,13 @@ final class AppState: RaceSessionDelegate {
     func beginPlacement() {
         placementError = nil
         placementScale = 1.0
+        arController.setSelectedTrack(id: raceConfig.trackId)
         pendingPlacementStart = true
         phase = .placement
     }
 
     func onARViewReady() {
+        arController.setSelectedTrack(id: raceConfig.trackId)
         arController.flushPendingState(session: arSession)
         tryApplyPendingTrackPlacement()
         if pendingPlacementStart {
@@ -382,11 +392,14 @@ final class AppState: RaceSessionDelegate {
         trackPlaced = true
         lastTrackTransform = result.transform
         lastTrackScale = result.scale
+        lastTrackPresetId = result.presetId
+        raceConfig.trackId = result.presetId
+        arController.setSelectedTrack(id: result.presetId)
         placementScale = result.scale
         if role == .host {
             phase = .hostSetup
             Task {
-                await broadcastTrackPlacedWithWorldMap(transform: result.transform, scale: result.scale)
+                await broadcastTrackPlacedWithWorldMap(transform: result.transform, scale: result.scale, presetId: result.presetId)
             }
         } else {
             Task { await startRace() }
@@ -424,7 +437,15 @@ final class AppState: RaceSessionDelegate {
     func resendTrack() {
         guard role == .host, trackPlaced, let transform = lastTrackTransform else { return }
         Task {
-            await broadcastTrackPlacedWithWorldMap(transform: transform, scale: lastTrackScale)
+            await broadcastTrackPlacedWithWorldMap(transform: transform, scale: lastTrackScale, presetId: lastTrackPresetId)
+        }
+    }
+
+    func selectTrack(_ trackId: String) {
+        let normalized = RaceTrackCatalog.normalizedTrackId(trackId)
+        raceConfig.trackId = normalized
+        if !trackPlaced {
+            arController.setSelectedTrack(id: normalized)
         }
     }
 
@@ -434,7 +455,7 @@ final class AppState: RaceSessionDelegate {
         arController.applyInput(
             playerId: localId,
             steer: steerInput,
-            throttle: throttleInput,
+            gasPressed: gasPressed,
             brake: brakeInput,
             deltaTime: deltaTime
         )
@@ -498,6 +519,7 @@ final class AppState: RaceSessionDelegate {
             guard let payload = try? envelope.decode(JoinAcceptPayload.self) else { return }
             players = payload.allPlayers
             raceConfig = payload.config
+            arController.setSelectedTrack(id: raceConfig.trackId)
             cancelLobbySync()
             lobbySyncErrorMessage = nil
 
@@ -720,12 +742,12 @@ final class AppState: RaceSessionDelegate {
         await spawnAllCars()
     }
 
-    private func localPlayer(isHost: Bool, colorHex: String = PlayerColors.hostHex) -> PlayerProfile {
+    private func localPlayer(isHost: Bool, colorHex: String? = nil) -> PlayerProfile {
         PlayerProfile.local(
             peerId: raceSession.localPlayerId,
             name: raceSession.localDisplayName,
             isHost: isHost,
-            colorHex: colorHex
+            colorHex: colorHex ?? PlayerColors.hostHex
         )
     }
 
@@ -734,9 +756,9 @@ final class AppState: RaceSessionDelegate {
         PlayerColors.assign(to: &players)
     }
 
-    private func broadcastTrackPlaced(transform: TransformPacket, scale: Float, worldMapChunkCount: Int) {
+    private func broadcastTrackPlaced(transform: TransformPacket, scale: Float, presetId: String, worldMapChunkCount: Int) {
         let payload = TrackPlacedPayload(
-            presetId: ProceduralTrack.presetId,
+            presetId: presetId,
             transform: transform,
             scale: scale,
             worldMapChunkCount: worldMapChunkCount
@@ -746,7 +768,7 @@ final class AppState: RaceSessionDelegate {
         }
     }
 
-    private func broadcastTrackPlacedWithWorldMap(transform: TransformPacket, scale: Float) async {
+    private func broadcastTrackPlacedWithWorldMap(transform: TransformPacket, scale: Float, presetId: String) async {
         var chunkCount = 0
         if let mapData = await captureWorldMapData() {
             let chunks = WorldMapTransfer.chunk(data: mapData)
@@ -758,7 +780,7 @@ final class AppState: RaceSessionDelegate {
                 }
             }
         }
-        broadcastTrackPlaced(transform: transform, scale: scale, worldMapChunkCount: chunkCount)
+        broadcastTrackPlaced(transform: transform, scale: scale, presetId: presetId, worldMapChunkCount: chunkCount)
     }
 
     private func captureWorldMapData() async -> Data? {
@@ -807,7 +829,10 @@ final class AppState: RaceSessionDelegate {
         cancelRelocalizationTimeout()
         isRelocalizing = false
         relocalizationMessage = nil
-        arController.placeTrackFromSync(transform: payload.transform, scale: payload.scale)
+        raceConfig.trackId = RaceTrackCatalog.normalizedTrackId(payload.presetId)
+        lastTrackPresetId = raceConfig.trackId
+        arController.setSelectedTrack(id: raceConfig.trackId)
+        arController.placeTrackFromSync(transform: payload.transform, scale: payload.scale, presetId: raceConfig.trackId)
         trackPlaced = true
         lastTrackTransform = payload.transform
         lastTrackScale = payload.scale

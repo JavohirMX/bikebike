@@ -19,7 +19,7 @@ struct HomeView: View {
             HomeBikeScene(mode: .parked)
                 .padding(.horizontal, 24)
 
-            HStack {
+            VStack {
                 Spacer()
 
                 VStack(spacing: 20) {
@@ -48,7 +48,9 @@ struct HomeView: View {
                     }
                     .frame(width: 280)
                 }
-                .padding(.trailing, 48)
+                .bikeBikeScreenContent(maxWidth: 400)
+
+                Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -44,7 +44,7 @@ enum ARTrackingQuality: Equatable {
 // MARK: - Race
 
 struct RaceConfig: Codable, Equatable {
-    var trackId: String = "oval-loop-procedural"
+    var trackId: String = RaceTrackCatalog.defaultTrackId
     var lapCount: Int = 3
 }
 

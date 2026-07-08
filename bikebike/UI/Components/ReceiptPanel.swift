@@ -13,6 +13,8 @@ struct ReceiptPanel<Content: View>: View {
             Image("receipt-panel")
                 .resizable()
                 .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .clipped()
 
             content()
                 .padding(.horizontal, 20)

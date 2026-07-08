@@ -36,8 +36,7 @@ struct MultiplayerRolePickerView: View {
                     }
                     .frame(width: 280)
                 }
-                .padding(.trailing, 48)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .bikeBikeScreenContent(maxWidth: 400)
 
                 Spacer()
             }
