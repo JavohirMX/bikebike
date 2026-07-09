@@ -35,6 +35,10 @@ enum BikeMovementModel {
     static let brakeForce: Float = 4.5
     static let rollingDrag: Float = 1.2
     static let wallSlideFriction: Float = 0.75
+    static let boostThrustMultiplier: Float = 2.5
+    static let boostSustainThrust: Float = 1.8
+
+    static var boostedMaxSpeed: Float { maxSpeed * BoostState.speedMultiplier }
 
     static let maxYawRate: Float = 2.8
     static let minSteerSpeed: Float = 0.05
@@ -66,17 +70,24 @@ enum BikeMovementModel {
             pedalAmount = max(0, pedalAmount - pedalRampDown * deltaTime)
         }
 
+        let thrustMultiplier: Float = input.boostActive ? boostThrustMultiplier : 1.0
         if pedalAmount > 0.001 {
-            speed += thrustForce * pedalAmount * deltaTime
+            speed += thrustForce * pedalAmount * thrustMultiplier * deltaTime
+        } else if input.boostActive {
+            speed += boostSustainThrust * deltaTime
         }
         if input.brake > 0.05 {
             speed -= brakeForce * input.brake * deltaTime
         }
-        if pedalAmount <= 0.001, input.brake <= 0.05 {
+        if pedalAmount <= 0.001, input.brake <= 0.05, !input.boostActive {
             speed *= exp(-rollingDrag * deltaTime)
         }
-        let speedCap = input.boostActive ? maxSpeed * BoostState.speedMultiplier : maxSpeed
+
+        let speedCap = input.boostActive ? boostedMaxSpeed : maxSpeed
         speed = max(0, min(speedCap, speed))
+        if input.boostActive {
+            speed = max(speed, boostedMaxSpeed * 0.9)
+        }
 
         let steerFactor = speedSteerFactor(speed)
         if abs(input.steer) > 0.02, steerFactor > 0 {

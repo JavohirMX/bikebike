@@ -366,6 +366,17 @@ final class ARSceneController {
         for id in cars.keys { removeCar(playerId: id) }
     }
 
+    func applyBoostBurst(playerId: String) {
+        let burstSpeed = BikeMovementModel.boostedMaxSpeed
+        let current = carSpeeds[playerId] ?? 0
+        let newSpeed = max(current, burstSpeed)
+        carSpeeds[playerId] = newSpeed
+        if var state = bikeMovementStates[playerId] {
+            state.speed = newSpeed
+            bikeMovementStates[playerId] = state
+        }
+    }
+
     @discardableResult
     func applyInput(playerId: String, steer: Float, gasPressed: Bool, brake: Float, boostActive: Bool, deltaTime: Float) -> Bool {
         guard let car = cars[playerId], let trackAnchor else { return false }

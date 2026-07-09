@@ -69,7 +69,6 @@ final class AppState: RaceSessionDelegate {
     private var elapsedTimer: Timer?
     private var countdownTimer: Timer?
     private var lastCountdownTickSecond: Int?
-    private var lastWallHitTime: TimeInterval = 0
     private var lastLapCrossTime: [String: Date] = [:]
     private var browseHelpTask: Task<Void, Never>?
     private var qrJoinTimeoutTask: Task<Void, Never>?
@@ -533,7 +532,7 @@ final class AppState: RaceSessionDelegate {
         tickBoost(deltaTime: deltaTime)
 
         let localId = raceSession.localPlayerId
-        let hitWall = arController.applyInput(
+        arController.applyInput(
             playerId: localId,
             steer: steerInput,
             gasPressed: gasPressed,
@@ -541,13 +540,6 @@ final class AppState: RaceSessionDelegate {
             boostActive: boostState.isActive,
             deltaTime: deltaTime
         )
-        if hitWall {
-            let now = Date().timeIntervalSince1970
-            if now - lastWallHitTime > 0.35 {
-                lastWallHitTime = now
-                AudioManager.shared.play(.collision)
-            }
-        }
 
         let speed = arController.carSpeed(playerId: localId)
         AudioManager.shared.setEngineActive(gasPressed || speed > 0.02, speed: speed)
@@ -578,6 +570,7 @@ final class AppState: RaceSessionDelegate {
         boostState.isActive = true
         boostState.durationRemaining = BoostState.activeDuration
         boostState.cooldownRemaining = 0
+        arController.applyBoostBurst(playerId: raceSession.localPlayerId)
         arController.setBoostActive(playerId: raceSession.localPlayerId, active: true)
         HapticManager.boostActivated()
         AudioManager.shared.play(.boost)

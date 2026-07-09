@@ -30,7 +30,7 @@ struct BoostState: Equatable {
     var durationRemaining: TimeInterval = 0
     var cooldownRemaining: TimeInterval = 0
 
-    static let activeDuration: TimeInterval = 2.5
+    static let activeDuration: TimeInterval = 3.0
     static let cooldownDuration: TimeInterval = 10.0
     static let speedMultiplier: Float = 1.5
 

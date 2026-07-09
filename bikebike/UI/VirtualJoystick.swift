@@ -85,14 +85,14 @@ struct LeftDriveControls: View {
     let onBoostTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             BoostButton(
                 cooldownProgress: boostCooldownProgress,
                 isReady: boostReady,
                 isActive: boostActive,
                 onTap: onBoostTap
             )
-            .offset(x: 30, y: 10)
+            .padding(.leading, 14)
             GasButton(gasPressed: $gasPressed)
         }
     }
