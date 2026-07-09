@@ -20,8 +20,26 @@ enum AppPhase: Equatable {
     case hostLobby
     case guestLobby
     case placement
+    case countdown
     case racing
     case results
+}
+
+struct BoostState: Equatable {
+    var isActive: Bool = false
+    var durationRemaining: TimeInterval = 0
+    var cooldownRemaining: TimeInterval = 0
+
+    static let activeDuration: TimeInterval = 2.5
+    static let cooldownDuration: TimeInterval = 10.0
+    static let speedMultiplier: Float = 1.5
+
+    var isReady: Bool { !isActive && cooldownRemaining <= 0 }
+
+    var cooldownProgress: Double {
+        guard cooldownRemaining > 0 else { return 1 }
+        return 1 - (cooldownRemaining / Self.cooldownDuration)
+    }
 }
 
 enum PlayerRole {

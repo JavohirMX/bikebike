@@ -24,6 +24,8 @@ final class ARSceneController {
     private var cars: [String: Entity] = [:]
     private var carSpeeds: [String: Float] = [:]
     private var bikeMovementStates: [String: BikeMovementState] = [:]
+    private var boostEmitterEntities: [String: Entity] = [:]
+    private var remoteBoostActive: [String: Bool] = [:]
     private var remoteCarStates: [String: RemoteCarState] = [:]
     private var lastMeasuredArc: [String: Float] = [:]
     private var distanceSinceLap: [String: Float] = [:]
@@ -352,6 +354,8 @@ final class ARSceneController {
         carSpeeds.removeValue(forKey: playerId)
         bikeMovementStates.removeValue(forKey: playerId)
         remoteCarStates.removeValue(forKey: playerId)
+        remoteBoostActive.removeValue(forKey: playerId)
+        removeBoostEmitter(for: playerId)
         lastMeasuredArc.removeValue(forKey: playerId)
         distanceSinceLap.removeValue(forKey: playerId)
         passedCheckpoint.removeValue(forKey: playerId)
@@ -362,8 +366,9 @@ final class ARSceneController {
         for id in cars.keys { removeCar(playerId: id) }
     }
 
-    func applyInput(playerId: String, steer: Float, gasPressed: Bool, brake: Float, deltaTime: Float) {
-        guard let car = cars[playerId], let trackAnchor else { return }
+    @discardableResult
+    func applyInput(playerId: String, steer: Float, gasPressed: Bool, brake: Float, boostActive: Bool, deltaTime: Float) -> Bool {
+        guard let car = cars[playerId], let trackAnchor else { return false }
 
         let previousLocal = localCarPosition(car)
         var movementState = bikeMovementStates[playerId] ?? BikeMovementModel.initialState(from: car.orientation)
@@ -371,7 +376,7 @@ final class ARSceneController {
 
         let result = BikeMovementModel.integrate(
             state: movementState,
-            input: BikeMovementInput(steer: steer, gasPressed: gasPressed, brake: brake),
+            input: BikeMovementInput(steer: steer, gasPressed: gasPressed, brake: brake, boostActive: boostActive),
             localPosition: previousLocal,
             trackGeometry: trackGeometry,
             wheelbase: trackGeometry.carSize.z,
@@ -389,7 +394,27 @@ final class ARSceneController {
             pitch: result.pitch
         )
 
+        setBoostActive(playerId: playerId, active: boostActive)
         checkFinishLineCrossing(playerId: playerId, car: car, previousLocal: previousLocal)
+        return result.hitWall
+    }
+
+    func setBoostActive(playerId: String, active: Bool) {
+        guard let car = cars[playerId] else { return }
+        if active {
+            if boostEmitterEntities[playerId] == nil {
+                let emitter = makeBoostEmitter()
+                emitter.position = SIMD3(0, 0.04, 0.08)
+                car.addChild(emitter)
+                boostEmitterEntities[playerId] = emitter
+            }
+        } else {
+            removeBoostEmitter(for: playerId)
+        }
+    }
+
+    func isBoostActive(playerId: String) -> Bool {
+        boostEmitterEntities[playerId] != nil
     }
 
     func carTransform(playerId: String) -> TransformPacket? {
@@ -403,13 +428,17 @@ final class ARSceneController {
         carSpeeds[playerId] ?? 0
     }
 
-    func setRemoteCarTarget(playerId: String, transform: TransformPacket, speed: Float) {
+    func setRemoteCarTarget(playerId: String, transform: TransformPacket, speed: Float, boostActive: Bool = false) {
         guard trackAnchor != nil, cars[playerId] != nil else { return }
         remoteCarStates[playerId] = RemoteCarState(
             transform: transform,
             speed: speed,
             receivedAt: Date().timeIntervalSince1970
         )
+        if remoteBoostActive[playerId] != boostActive {
+            remoteBoostActive[playerId] = boostActive
+            setBoostActive(playerId: playerId, active: boostActive)
+        }
     }
 
     func tickRemoteCars(deltaTime: Float, now: TimeInterval) {
@@ -616,6 +645,30 @@ private struct RemoteCarState {
     var transform: TransformPacket
     var speed: Float
     var receivedAt: TimeInterval
+}
+
+private func makeBoostEmitter() -> Entity {
+    let entity = Entity()
+    var particles = ParticleEmitterComponent()
+    particles.emitterShape = .sphere
+    particles.emitterShapeSize = SIMD3(0.02, 0.02, 0.02)
+    particles.speed = 0.35
+    particles.mainEmitter.birthRate = 180
+    particles.mainEmitter.lifeSpan = 0.35
+    particles.mainEmitter.size = 0.012
+    particles.mainEmitter.color = .evolving(
+        start: .single(.orange),
+        end: .single(.yellow)
+    )
+    entity.components.set(particles)
+    return entity
+}
+
+private extension ARSceneController {
+    func removeBoostEmitter(for playerId: String) {
+        boostEmitterEntities[playerId]?.removeFromParent()
+        boostEmitterEntities.removeValue(forKey: playerId)
+    }
 }
 
 private extension UIColor {

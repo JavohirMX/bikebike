@@ -101,6 +101,26 @@ struct CarPosePayload: Codable {
     let playerId: String
     let transform: TransformPacket
     let speed: Float
+    let boostActive: Bool
+
+    init(playerId: String, transform: TransformPacket, speed: Float, boostActive: Bool = false) {
+        self.playerId = playerId
+        self.transform = transform
+        self.speed = speed
+        self.boostActive = boostActive
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        playerId = try container.decode(String.self, forKey: .playerId)
+        transform = try container.decode(TransformPacket.self, forKey: .transform)
+        speed = try container.decode(Float.self, forKey: .speed)
+        boostActive = try container.decodeIfPresent(Bool.self, forKey: .boostActive) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case playerId, transform, speed, boostActive
+    }
 }
 
 struct LapCompletedPayload: Codable {

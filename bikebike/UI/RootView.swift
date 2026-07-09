@@ -35,7 +35,7 @@ struct RootView: View {
                 HostLobbyView()
             case .guestLobby:
                 GuestLobbyView()
-            case .placement, .racing:
+            case .placement, .countdown, .racing:
                 EmptyView()
             case .results:
                 ResultsView()
@@ -55,7 +55,7 @@ struct RootView: View {
 
     private var showsAR: Bool {
         switch appState.phase {
-        case .placement, .racing, .guestLobby:
+        case .placement, .countdown, .racing, .guestLobby:
             return true
         case .guestSetup:
             return appState.isSessionConnected || appState.isRelocalizing

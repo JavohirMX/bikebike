@@ -6,6 +6,7 @@
 import Foundation
 import ARKit
 import Observation
+import UIKit
 
 enum HomeDepartureStyle: Equatable {
     case solo
@@ -42,6 +43,10 @@ final class AppState: RaceSessionDelegate {
     private var relocalizationTimeoutTask: Task<Void, Never>?
     var raceStartTime: Date?
     var elapsedTime: TimeInterval = 0
+    var raceBeginTimestamp: TimeInterval?
+    var countdownLabel: String?
+    var boostState = BoostState()
+    var boostRequested = false
 
     var pendingPlacementStart = false
     private var placementReturnPhase: AppPhase?
@@ -59,10 +64,12 @@ final class AppState: RaceSessionDelegate {
     // Input state
     var steerInput: Float = 0
     var gasPressed: Bool = false
-    var brakeInput: Float = 0
 
     private var poseTimer: Timer?
     private var elapsedTimer: Timer?
+    private var countdownTimer: Timer?
+    private var lastCountdownTickSecond: Int?
+    private var lastWallHitTime: TimeInterval = 0
     private var lastLapCrossTime: [String: Date] = [:]
     private var browseHelpTask: Task<Void, Never>?
     private var qrJoinTimeoutTask: Task<Void, Never>?
@@ -95,9 +102,15 @@ final class AppState: RaceSessionDelegate {
 
     func exitRace() {
         stopTimers()
+        setRaceIdleTimerDisabled(false)
+        AudioManager.shared.stopAll()
         steerInput = 0
         gasPressed = false
-        brakeInput = 0
+        boostState = BoostState()
+        boostRequested = false
+        raceBeginTimestamp = nil
+        countdownLabel = nil
+        lastCountdownTickSecond = nil
         arController.removeAllCars()
         carStates = []
         leaderboard = []
@@ -116,6 +129,8 @@ final class AppState: RaceSessionDelegate {
 
     func goHome() {
         stopTimers()
+        setRaceIdleTimerDisabled(false)
+        AudioManager.shared.stopAll()
         raceSession.stopAll()
         arController.teardown()
         phase = .home
@@ -148,6 +163,11 @@ final class AppState: RaceSessionDelegate {
         placementError = nil
         raceStartTime = nil
         elapsedTime = 0
+        raceBeginTimestamp = nil
+        countdownLabel = nil
+        boostState = BoostState()
+        boostRequested = false
+        lastCountdownTickSecond = nil
         lastRemotePoseTimestamp = [:]
         homeDeparture = nil
     }
@@ -278,9 +298,15 @@ final class AppState: RaceSessionDelegate {
 
     func playAgain() {
         stopTimers()
+        setRaceIdleTimerDisabled(false)
+        AudioManager.shared.stopAll()
         steerInput = 0
         gasPressed = false
-        brakeInput = 0
+        boostState = BoostState()
+        boostRequested = false
+        raceBeginTimestamp = nil
+        countdownLabel = nil
+        lastCountdownTickSecond = nil
         arController.removeAllCars()
         carStates = []
         leaderboard = []
@@ -387,7 +413,7 @@ final class AppState: RaceSessionDelegate {
             placementScale = 1.0
             arController.startPlacementPreview()
         }
-        if phase == .racing {
+        if phase == .racing || phase == .countdown {
             Task { await respawnAllCars() }
         }
     }
@@ -439,21 +465,48 @@ final class AppState: RaceSessionDelegate {
 
     func startRace() async {
         guard trackPlaced else { return }
-        phase = .racing
-        raceStartTime = Date()
-        elapsedTime = 0
-        lastRemotePoseTimestamp = [:]
-        await spawnAllCars()
+        let beginTime = Date().timeIntervalSince1970 + 3.5
+        await beginCountdown(raceBeginTime: beginTime)
 
         if role == .host {
-            let payload = RaceStartPayload(startTime: Date().timeIntervalSince1970, config: raceConfig)
+            let payload = RaceStartPayload(startTime: beginTime, config: raceConfig)
             if let envelope = try? raceSession.encode(type: .raceStart, payload: payload) {
                 raceSession.send(envelope, reliable: true)
             }
         }
+    }
 
+    private func beginCountdown(raceBeginTime: TimeInterval) async {
+        raceBeginTimestamp = raceBeginTime
+        countdownLabel = "3"
+        lastCountdownTickSecond = 3
+        phase = .countdown
+        elapsedTime = 0
+        raceStartTime = nil
+        lastRemotePoseTimestamp = [:]
+        boostState = BoostState()
+        boostRequested = false
+        setRaceIdleTimerDisabled(true)
+        await spawnAllCars()
+        startCountdownTimer()
+        HapticManager.countdownTick()
+        AudioManager.shared.play(.countdownBeep)
+    }
+
+    private func enterRacingPhase() {
+        guard phase == .countdown else { return }
+        phase = .racing
+        raceStartTime = Date()
+        countdownLabel = nil
+        raceBeginTimestamp = nil
+        lastCountdownTickSecond = nil
+        stopCountdownTimer()
         startTimers()
         refreshLeaderboard()
+    }
+
+    func requestBoost() {
+        boostRequested = true
     }
 
     func hostStartRace() {
@@ -477,16 +530,57 @@ final class AppState: RaceSessionDelegate {
 
     func applyInputTick(deltaTime: Float) {
         guard phase == .racing else { return }
+        tickBoost(deltaTime: deltaTime)
+
         let localId = raceSession.localPlayerId
-        arController.applyInput(
+        let hitWall = arController.applyInput(
             playerId: localId,
             steer: steerInput,
             gasPressed: gasPressed,
-            brake: brakeInput,
+            brake: 0,
+            boostActive: boostState.isActive,
             deltaTime: deltaTime
         )
+        if hitWall {
+            let now = Date().timeIntervalSince1970
+            if now - lastWallHitTime > 0.35 {
+                lastWallHitTime = now
+                AudioManager.shared.play(.collision)
+            }
+        }
+
+        let speed = arController.carSpeed(playerId: localId)
+        AudioManager.shared.setEngineActive(gasPressed || speed > 0.02, speed: speed)
+
         arController.tickRemoteCars(deltaTime: deltaTime, now: Date().timeIntervalSince1970)
         updateLocalCarState()
+    }
+
+    private func tickBoost(deltaTime: Float) {
+        if boostState.isActive {
+            boostState.durationRemaining -= Double(deltaTime)
+            if boostState.durationRemaining <= 0 {
+                boostState.isActive = false
+                boostState.cooldownRemaining = BoostState.cooldownDuration
+                arController.setBoostActive(playerId: raceSession.localPlayerId, active: false)
+            }
+        } else if boostState.cooldownRemaining > 0 {
+            boostState.cooldownRemaining = max(0, boostState.cooldownRemaining - Double(deltaTime))
+        }
+
+        if boostRequested, boostState.isReady {
+            activateBoost()
+        }
+        boostRequested = false
+    }
+
+    private func activateBoost() {
+        boostState.isActive = true
+        boostState.durationRemaining = BoostState.activeDuration
+        boostState.cooldownRemaining = 0
+        arController.setBoostActive(playerId: raceSession.localPlayerId, active: true)
+        HapticManager.boostActivated()
+        AudioManager.shared.play(.boost)
     }
 
     // MARK: - RaceSessionDelegate
@@ -562,10 +656,14 @@ final class AppState: RaceSessionDelegate {
         case .raceStart:
             guard let payload = try? envelope.decode(RaceStartPayload.self) else { return }
             raceConfig = payload.config
-            if phase == .racing { return }
-            if trackPlaced {
-                Task { await startRace() }
+            if phase == .racing || phase == .countdown { return }
+            let now = Date().timeIntervalSince1970
+            if payload.startTime <= now + 0.1 {
+                Task { await enterRacingFromLateJoin() }
+            } else if trackPlaced {
+                Task { await beginCountdown(raceBeginTime: payload.startTime) }
             } else {
+                raceBeginTimestamp = payload.startTime
                 pendingRaceStart = true
             }
 
@@ -581,7 +679,8 @@ final class AppState: RaceSessionDelegate {
                 arController.setRemoteCarTarget(
                     playerId: payload.playerId,
                     transform: payload.transform,
-                    speed: payload.speed
+                    speed: payload.speed,
+                    boostActive: payload.boostActive
                 )
                 updateCarState(from: payload)
                 if role == .host {
@@ -597,6 +696,8 @@ final class AppState: RaceSessionDelegate {
             guard let payload = try? envelope.decode(RaceEndPayload.self) else { return }
             leaderboard = payload.leaderboard
             stopTimers()
+            setRaceIdleTimerDisabled(false)
+            AudioManager.shared.stopAll()
             phase = .results
 
         case .playerLeft:
@@ -764,9 +865,21 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func respawnAllCars() async {
-        guard phase == .racing, trackPlaced else { return }
+        guard phase == .racing || phase == .countdown, trackPlaced else { return }
         arController.removeAllCars()
         await spawnAllCars()
+    }
+
+    private func enterRacingFromLateJoin() async {
+        phase = .racing
+        raceStartTime = Date()
+        countdownLabel = nil
+        raceBeginTimestamp = nil
+        lastCountdownTickSecond = nil
+        setRaceIdleTimerDisabled(true)
+        await spawnAllCars()
+        startTimers()
+        refreshLeaderboard()
     }
 
     private func localPlayer(isHost: Bool, colorHex: String? = nil) -> PlayerProfile {
@@ -870,10 +983,17 @@ final class AppState: RaceSessionDelegate {
 
         if pendingRaceStart {
             pendingRaceStart = false
-            if phase != .racing {
+            if let beginTime = raceBeginTimestamp {
+                let now = Date().timeIntervalSince1970
+                if beginTime <= now + 0.1 {
+                    Task { await enterRacingFromLateJoin() }
+                } else if phase != .countdown, phase != .racing {
+                    Task { await beginCountdown(raceBeginTime: beginTime) }
+                }
+            } else if phase != .racing, phase != .countdown {
                 Task { await startRace() }
             }
-        } else if phase == .racing {
+        } else if phase == .racing || phase == .countdown {
             Task { await respawnAllCars() }
         }
     }
@@ -984,6 +1104,10 @@ final class AppState: RaceSessionDelegate {
             carStates[idx].finished = true
             carStates[idx].finishTime = carStates[idx].totalTime
             carStates[idx].status = .finished
+            if playerId == raceSession.localPlayerId {
+                HapticManager.finishLine()
+                AudioManager.shared.play(.finishFanfare)
+            }
             checkRaceEnd()
         }
         refreshLeaderboard()
@@ -1013,6 +1137,8 @@ final class AppState: RaceSessionDelegate {
     private func endRace() {
         refreshLeaderboard()
         stopTimers()
+        setRaceIdleTimerDisabled(false)
+        AudioManager.shared.stopAll()
         let payload = RaceEndPayload(leaderboard: leaderboard, reason: "allFinished")
         if role == .host, let envelope = try? raceSession.encode(type: .raceEnd, payload: payload) {
             raceSession.send(envelope, reliable: true)
@@ -1055,6 +1181,68 @@ final class AppState: RaceSessionDelegate {
         }
     }
 
+    private func startCountdownTimer() {
+        stopCountdownTimer()
+        updateCountdownLabel()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tickCountdown()
+            }
+        }
+    }
+
+    private func tickCountdown() {
+        guard phase == .countdown, let begin = raceBeginTimestamp else { return }
+        let remaining = begin - Date().timeIntervalSince1970
+        if remaining <= 0 {
+            enterRacingPhase()
+            return
+        }
+
+        let displaySecond: Int
+        if remaining <= 0.5 {
+            displaySecond = 0
+        } else {
+            displaySecond = Int(ceil(remaining - 0.5))
+        }
+
+        if displaySecond != lastCountdownTickSecond {
+            lastCountdownTickSecond = displaySecond
+            updateCountdownLabel()
+            if displaySecond == 0 {
+                HapticManager.raceStart()
+                AudioManager.shared.play(.goHorn)
+            } else {
+                HapticManager.countdownTick()
+                AudioManager.shared.play(.countdownBeep)
+            }
+        }
+    }
+
+    private func updateCountdownLabel() {
+        guard let begin = raceBeginTimestamp else {
+            countdownLabel = nil
+            return
+        }
+        let remaining = begin - Date().timeIntervalSince1970
+        if remaining <= 0 {
+            countdownLabel = nil
+        } else if remaining <= 0.5 {
+            countdownLabel = "GO!"
+        } else {
+            countdownLabel = "\(Int(ceil(remaining - 0.5)))"
+        }
+    }
+
+    private func stopCountdownTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+    }
+
+    private func setRaceIdleTimerDisabled(_ disabled: Bool) {
+        UIApplication.shared.isIdleTimerDisabled = disabled
+    }
+
     private func updateElapsedTime() {
         guard let start = raceStartTime else { return }
         elapsedTime = Date().timeIntervalSince(start)
@@ -1065,13 +1253,19 @@ final class AppState: RaceSessionDelegate {
         poseTimer = nil
         elapsedTimer?.invalidate()
         elapsedTimer = nil
+        stopCountdownTimer()
     }
 
     private func broadcastPose() {
         guard phase == .racing else { return }
         guard let transform = arController.carTransform(playerId: raceSession.localPlayerId) else { return }
         let speed = arController.carSpeed(playerId: raceSession.localPlayerId)
-        let payload = CarPosePayload(playerId: raceSession.localPlayerId, transform: transform, speed: speed)
+        let payload = CarPosePayload(
+            playerId: raceSession.localPlayerId,
+            transform: transform,
+            speed: speed,
+            boostActive: boostState.isActive
+        )
         guard let envelope = try? raceSession.encode(type: .carPose, payload: payload) else { return }
         if role == .host {
             raceSession.send(envelope, reliable: false)

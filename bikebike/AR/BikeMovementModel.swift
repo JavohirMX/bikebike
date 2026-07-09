@@ -16,6 +16,7 @@ struct BikeMovementInput {
     var steer: Float
     var gasPressed: Bool
     var brake: Float
+    var boostActive: Bool = false
 }
 
 struct BikeMovementResult {
@@ -74,7 +75,8 @@ enum BikeMovementModel {
         if pedalAmount <= 0.001, input.brake <= 0.05 {
             speed *= exp(-rollingDrag * deltaTime)
         }
-        speed = max(0, min(maxSpeed, speed))
+        let speedCap = input.boostActive ? maxSpeed * BoostState.speedMultiplier : maxSpeed
+        speed = max(0, min(speedCap, speed))
 
         let steerFactor = speedSteerFactor(speed)
         if abs(input.steer) > 0.02, steerFactor > 0 {
