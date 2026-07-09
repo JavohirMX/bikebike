@@ -91,7 +91,7 @@ enum USDZTrackGuideParser {
                 roadblock: guides.roadblock.map { meshVerticesXZ(in: $0, relativeTo: root) }
             )
         } else {
-            drivableHalfWidth = 0.04
+            drivableHalfWidth = 0.10
         }
 
         let surfaceY = estimateSurfaceY(

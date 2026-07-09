@@ -148,7 +148,7 @@ struct ProceduralTrackDefinition: RaceTrackGeometry {
             displayName: "Classic Oval",
             turnRadius: 0.25,
             straightLength: 0.30,
-            trackWidth: 0.12,
+            trackWidth: 0.20,
             surfaceY: 0.03,
             carSize: SIMD3<Float>(0.04, 0.016, 0.065),
             axis: .x
@@ -211,7 +211,7 @@ struct USDZTrackGeometry: RaceTrackGeometry {
         guard longAxis > 0.2, shortAxis > 0.1 else { return nil }
 
         let axis: TrackAxis = footprint.x >= footprint.y ? .x : .z
-        let trackWidth = min(shortAxis * 0.22, shortAxis * 0.42)
+        let trackWidth = min(shortAxis * 0.35, shortAxis * 0.60)
         let outerRadius = shortAxis / 2
         let turnRadius = max(0.06, outerRadius - trackWidth / 2)
         let straightLength = max(0.06, longAxis - 2 * outerRadius)

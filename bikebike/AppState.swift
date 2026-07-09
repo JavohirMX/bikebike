@@ -639,7 +639,7 @@ final class AppState: RaceSessionDelegate {
             playerId: localId,
             steer: steerInput,
             gasPressed: gasPressed,
-            brake: 0,
+            brake: 0.0,
             boostActive: boostState.isActive,
             deltaTime: deltaTime
         )

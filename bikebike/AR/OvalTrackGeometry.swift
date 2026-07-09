@@ -11,7 +11,7 @@ enum OvalTrackGeometry {
 
     static let turnRadius: Float = 0.25
     static let straightLength: Float = 0.30
-    static let trackWidth: Float = 0.12
+    static let trackWidth: Float = 0.20
     static let wallHeight: Float = 0.04
     static let wallThickness: Float = 0.012
     static let floorThickness: Float = 0.008

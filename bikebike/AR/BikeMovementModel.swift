@@ -30,7 +30,7 @@ struct BikeMovementResult {
 }
 
 enum BikeMovementModel {
-    static let maxSpeed: Float = 0.5
+    static let maxSpeed: Float = 0.35
     static let thrustForce: Float = 2.5
     static let brakeForce: Float = 4.5
     static let rollingDrag: Float = 1.2
@@ -162,7 +162,7 @@ enum BikeMovementModel {
     }
 
     private static func speedSteerFactor(_ speed: Float) -> Float {
-        min(1, max(0, speed / minSteerSpeed))
+        1.0
     }
 
     private static func forwardDirection(yaw: Float) -> SIMD2<Float> {

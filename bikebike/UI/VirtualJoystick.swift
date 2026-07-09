@@ -9,7 +9,7 @@ import SwiftUI
 struct SteerArrowButtons: View {
     @Binding var steer: Float
 
-    private let steerRampRate: Float = 2.5
+    private let steerRampRate: Float = 15.0
     private let tickInterval: TimeInterval = 1.0 / 60.0
     private let buttonSize: CGFloat = 67
     private let iconSize: CGFloat = 29
