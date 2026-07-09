@@ -47,6 +47,7 @@ enum BikeMovementModel {
     static let heightSmoothing: Float = 14
     static let pitchSmoothing: Float = 12
     static let leanSmoothing: Float = 5
+    static let leanReturnSmoothing: Float = 14
     static let pedalRampUp: Float = 0.5
     static let pedalRampDown: Float = 1.5
     static let maxLean: Float = 0.35
@@ -137,13 +138,10 @@ enum BikeMovementModel {
             localPos.y = targetChassisY
         }
 
-        if abs(input.steer) <= 0.02 {
-            roll = 0
-        } else {
-            let targetRoll = -input.steer * maxLean * steerFactor
-            let leanBlend = 1 - exp(-leanSmoothing * deltaTime)
-            roll = simd_mix(roll, targetRoll, leanBlend)
-        }
+        let targetRoll = -input.steer * maxLean * steerFactor
+        let leanSmoothingRate = abs(input.steer) > 0.02 ? leanSmoothing : leanReturnSmoothing
+        let leanBlend = 1 - exp(-leanSmoothingRate * deltaTime)
+        roll = simd_mix(roll, targetRoll, leanBlend)
         let orientation = composeOrientation(yaw: yaw, pitch: pitch, roll: roll)
 
         return BikeMovementResult(
