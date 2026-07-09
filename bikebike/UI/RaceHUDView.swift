@@ -105,117 +105,62 @@ struct PlacementOverlay: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Button("Cancel") {
-                    appState.cancelPlacement()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                Spacer()
-                statusPill
-            }
+        VStack(spacing: 0) {
+            topBar
 
             if appState.trackingQuality == .limited {
                 trackingBanner("Keep the table in view — tracking is limited")
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
             } else if appState.trackingQuality == .unavailable {
                 trackingBanner("Move your device slowly to restore tracking")
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
             }
 
             Spacer()
 
-            VStack(spacing: 10) {
-                Text(placementGuidance)
-                    .font(.subheadline.weight(.medium))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            VStack(spacing: 12) {
+                PlacementTrackStepper()
 
-                if let error = appState.placementError {
-                    Text(error)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-
-                if appState.planeDetectionStatus == .ready {
-                    VStack(spacing: 8) {
-                        Text("Scale: \(Int(appState.placementScale * 100))%")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Slider(
-                            value: Binding(
-                                get: { Double(appState.placementScale) },
-                                set: { appState.setPlacementScale(Float($0)) }
-                            ),
-                            in: 0.6...1.4,
-                            step: 0.05
-                        )
-                        .padding(.horizontal, 8)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                BikeBikePillButton(
+                    title: "Confirm Placement",
+                    style: .yellow,
+                    isEnabled: appState.canConfirmPlacement
+                ) {
+                    appState.confirmPlacement()
                 }
             }
-
-            Button("Confirm Placement") {
-                appState.confirmPlacement()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!appState.canConfirmPlacement)
+            .padding(.horizontal, 24)
             .padding(.bottom, 24)
+        }
+        .safeAreaPadding(.bottom, 8)
+    }
+
+    private var topBar: some View {
+        ZStack {
+            MultiplayerBanner(title: "Place Track")
+                .padding(.horizontal, 48)
+
+            HStack {
+                BikeBikeBackButton {
+                    appState.cancelPlacement()
+                }
+                Spacer()
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
     }
 
-    private var placementGuidance: String {
-        switch appState.planeDetectionStatus {
-        case .scanning:
-            return "Move your phone slowly across a flat table to find a surface."
-        case .surfaceFound:
-            return "Flat surface detected. Hold steady while tracking improves."
-        case .ready:
-            return "Surface ready — drag to move, pinch to resize, twist to rotate, then Confirm."
-        }
-    }
-
-    @ViewBuilder
-    private var statusPill: some View {
-        let (text, color): (String, Color) = {
-            switch appState.planeDetectionStatus {
-            case .scanning:
-                return ("Scanning…", .orange)
-            case .surfaceFound:
-                return ("Surface found", .yellow)
-            case .ready:
-                return ("Ready", .green)
-            }
-        }()
-        Text(text)
-            .font(.caption.bold())
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(color.opacity(0.85))
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
-    }
-
     private func trackingBanner(_ message: String) -> some View {
         Text(message)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.black)
+            .font(BikeBikeTheme.captionFont(size: 13))
+            .foregroundStyle(BikeBikeTheme.darkBlue)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(Color.yellow.opacity(0.9))
+            .background(BikeBikeTheme.yellow.opacity(0.92))
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

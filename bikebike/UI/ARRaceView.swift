@@ -15,18 +15,14 @@ struct ARRaceView: View {
 
     var body: some View {
         ZStack {
-            ARViewContainer(appState: appState, isPlacementActive: appState.phase == .placement)
+            ARViewContainer(
+                appState: appState,
+                isPlacementActive: appState.phase == .placement,
+                planeDetectionStatus: appState.planeDetectionStatus
+            )
                 .ignoresSafeArea()
 
             if appState.phase == .placement {
-                ARCoachingOverlayRepresentable(
-                    session: appState.arSession,
-                    activatesAutomatically: appState.planeDetectionStatus == .scanning,
-                    planeDetectionStatus: appState.planeDetectionStatus
-                )
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
                 PlacementOverlay()
             }
             if appState.phase == .racing {
@@ -58,6 +54,7 @@ struct ARRaceView: View {
 private struct ARViewContainer: UIViewRepresentable {
     let appState: AppState
     let isPlacementActive: Bool
+    let planeDetectionStatus: PlaneDetectionStatus
 
     func makeCoordinator() -> Coordinator {
         Coordinator(appState: appState)
@@ -71,6 +68,11 @@ private struct ARViewContainer: UIViewRepresentable {
 
         let config = ARSessionConfigFactory.makeWorldConfig(planeDetection: true)
         arView.session.run(config)
+
+        context.coordinator.coachingOverlay = ARCoachingOverlayHelper.attach(
+            to: arView,
+            delegate: context.coordinator
+        )
 
         appState.arSession = arView.session
         appState.arController.attach(to: arView, sessionDelegate: context.coordinator.sessionCoordinator)
@@ -88,12 +90,20 @@ private struct ARViewContainer: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARView, context: Context) {
         context.coordinator.placementGestures.setEnabled(isPlacementActive)
+        if let coachingOverlay = context.coordinator.coachingOverlay {
+            ARCoachingOverlayHelper.update(
+                coachingOverlay,
+                isPlacementActive: isPlacementActive,
+                planeDetectionStatus: planeDetectionStatus
+            )
+        }
     }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, ARCoachingOverlayViewDelegate {
         let arView = ARView(frame: .zero)
         let sessionCoordinator = ARSessionCoordinator()
         let placementGestures = TrackPlacementGestureHandler()
+        var coachingOverlay: ARCoachingOverlayView?
 
         init(appState: AppState) {
             sessionCoordinator.controller = appState.arController

@@ -4,29 +4,43 @@
 //
 
 import ARKit
-import SwiftUI
+import RealityKit
+import UIKit
 
-struct ARCoachingOverlayRepresentable: UIViewRepresentable {
-    let session: ARSession
-    var activatesAutomatically: Bool
-    var planeDetectionStatus: PlaneDetectionStatus
-
-    func makeUIView(context: Context) -> ARCoachingOverlayView {
+enum ARCoachingOverlayHelper {
+    static func attach(to arView: ARView, delegate: ARCoachingOverlayViewDelegate?) -> ARCoachingOverlayView {
         let overlay = ARCoachingOverlayView()
-        overlay.session = session
+        overlay.session = arView.session
         overlay.goal = .horizontalPlane
-        overlay.activatesAutomatically = activatesAutomatically
+        overlay.activatesAutomatically = false
+        overlay.delegate = delegate
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        arView.addSubview(overlay)
+        NSLayoutConstraint.activate([
+            overlay.leadingAnchor.constraint(equalTo: arView.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: arView.trailingAnchor),
+            overlay.topAnchor.constraint(equalTo: arView.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: arView.bottomAnchor),
+        ])
         return overlay
     }
 
-    func updateUIView(_ uiView: ARCoachingOverlayView, context: Context) {
-        uiView.session = session
-        uiView.activatesAutomatically = activatesAutomatically
+    static func update(
+        _ overlay: ARCoachingOverlayView,
+        isPlacementActive: Bool,
+        planeDetectionStatus: PlaneDetectionStatus
+    ) {
+        overlay.isHidden = !isPlacementActive
+        guard isPlacementActive else {
+            overlay.setActive(false, animated: true)
+            return
+        }
+
         switch planeDetectionStatus {
-        case .ready, .surfaceFound:
-            uiView.setActive(false, animated: true)
         case .scanning:
-            break
+            overlay.setActive(true, animated: true)
+        case .surfaceFound, .ready:
+            overlay.setActive(false, animated: true)
         }
     }
 }

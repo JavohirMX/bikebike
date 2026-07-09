@@ -80,6 +80,10 @@ final class ARSceneController {
     func setSelectedTrack(id: String) {
         selectedTrackId = RaceTrackCatalog.normalizedTrackId(id)
         refreshTrackGeometry()
+        if isPlacementMode, ghostAnchor != nil, placementPosition != nil {
+            removeGhost()
+            createGhostTrack()
+        }
     }
 
     func flushPendingState(session: ARSession) {
@@ -101,13 +105,11 @@ final class ARSceneController {
             } else {
                 planeDetectionStatus = .surfaceFound
             }
-            arView?.debugOptions.remove(.showFeaturePoints)
             if isPlacementMode, ghostAnchor == nil, placementAssetsReady {
                 tryInitialGhostPlacement()
             }
         } else if isPlacementMode {
             planeDetectionStatus = .scanning
-            arView?.debugOptions.insert(.showFeaturePoints)
         }
         notifyPlaneState()
     }
@@ -148,7 +150,6 @@ final class ARSceneController {
         removeTrack()
         removeGhost()
 
-        arView?.debugOptions.insert(.showFeaturePoints)
         resumePlaneDetection()
         Task { @MainActor in
             await preloadTrackIfNeeded()
@@ -162,7 +163,6 @@ final class ARSceneController {
         placementAssetsReady = false
         placementPosition = nil
         removeGhost()
-        arView?.debugOptions.remove(.showFeaturePoints)
         planeDetectionStatus = .scanning
         hasDetectedPlane = false
         notifyPlaneState()
@@ -229,7 +229,6 @@ final class ARSceneController {
         isPlacementMode = false
         trackConfirmed = true
         placementPosition = nil
-        arView?.debugOptions.remove(.showFeaturePoints)
         stopPlaneDetectionForRacing()
 
         let pos = SIMD3<Float>(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
@@ -258,6 +257,7 @@ final class ARSceneController {
         arView.scene.addAnchor(ghost)
         ghostAnchor = ghost
         ghostTrackEntity = track
+        notifyPlaneState()
     }
 
     private func applyGhostTransform() {
@@ -480,7 +480,6 @@ final class ARSceneController {
         removeTrack()
         removeGhost()
         arView?.session.delegate = nil
-        arView?.debugOptions.remove(.showFeaturePoints)
         arView = nil
         sessionCoordinator = nil
         planeDetectionStatus = .scanning
@@ -607,6 +606,9 @@ final class ARSceneController {
         ghostAnchor = nil
         ghostTrackEntity = nil
         ghostUsesFullTrackPreview = false
+        if isPlacementMode {
+            notifyPlaneState()
+        }
     }
 }
 
