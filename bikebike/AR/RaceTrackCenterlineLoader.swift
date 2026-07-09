@@ -19,12 +19,11 @@ enum RaceTrackCenterlineLoader {
         category: "RaceTrackCenterlineLoader"
     )
 
-    private static let fileName = "racetrack_centerline"
     private static let fileExtension = "json"
 
-    static func loadPoints() -> [SIMD3<Float>]? {
-        guard let url = resolveURL() else {
-            logger.error("Could not resolve \(fileName, privacy: .public).\(fileExtension, privacy: .public) in app bundle")
+    static func loadPoints(baseName: String) -> [SIMD3<Float>]? {
+        guard let url = resolveURL(baseName: baseName) else {
+            logger.error("Could not resolve \(baseName, privacy: .public).\(fileExtension, privacy: .public) in app bundle")
             return nil
         }
 
@@ -41,7 +40,7 @@ enum RaceTrackCenterlineLoader {
                 return nil
             }
 
-            logger.info("Loaded \(points.count, privacy: .public) centerline points from JSON")
+            logger.info("Loaded \(points.count, privacy: .public) centerline points from \(baseName, privacy: .public).json")
             return points
         } catch {
             logger.error("Failed to load centerline JSON: \(error.localizedDescription, privacy: .public)")
@@ -49,11 +48,11 @@ enum RaceTrackCenterlineLoader {
         }
     }
 
-    private static func resolveURL() -> URL? {
+    private static func resolveURL(baseName: String) -> URL? {
         let subdirectoryCandidates: [String?] = ["Resources", nil]
         for subdirectory in subdirectoryCandidates {
             if let url = Bundle.main.url(
-                forResource: fileName,
+                forResource: baseName,
                 withExtension: fileExtension,
                 subdirectory: subdirectory
             ) {

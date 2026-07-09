@@ -10,8 +10,9 @@ import simd
 
 struct USDZTrackGuides {
     let centerLine: Entity
-    let road: Entity
+    let road: Entity?
     let roadblock: Entity?
+    let barrierEntities: [Entity]
     let startFinish: Entity?
 }
 
@@ -33,12 +34,20 @@ enum USDZTrackGuideParser {
     static let centerLineNames = ["centerline", "center_line"]
     static let roadNames = ["road"]
     static let roadblockNames = ["roadblock", "road_block"]
+    static let roadBarrierPrefix = "road_straight_barrier"
     static let startFinishNames = ["startfinish", "start_finish", "finishline", "finish_line"]
 
     static func parseGuides(in root: Entity) -> USDZTrackGuides? {
-        guard let centerLine = findEntity(in: root, matchingAnyOf: centerLineNames),
-              let road = findEntity(in: root, matchingAnyOf: roadNames) else {
-            logger.error("Missing required track guides: centerLine and/or road")
+        guard let centerLine = findEntity(in: root, matchingAnyOf: centerLineNames) else {
+            logger.error("Missing required track guide: centerLine")
+            return nil
+        }
+
+        let road = findEntity(in: root, matchingAnyOf: roadNames)
+        let barrierEntities = findEntities(in: root, matchingPrefix: roadBarrierPrefix)
+
+        guard road != nil || !barrierEntities.isEmpty else {
+            logger.error("Missing required track guides: road and/or road_straight_barrier entities")
             return nil
         }
 
@@ -46,28 +55,49 @@ enum USDZTrackGuideParser {
             centerLine: centerLine,
             road: road,
             roadblock: findEntity(in: root, matchingAnyOf: roadblockNames),
+            barrierEntities: barrierEntities,
             startFinish: findEntity(in: root, matchingAnyOf: startFinishNames)
         )
     }
 
-    static func buildGeometry(from guides: USDZTrackGuides, relativeTo root: Entity) -> USDZTrackGeometry? {
-        guard let centerline3D = RaceTrackCenterlineLoader.loadPoints() else {
-            logger.error("Missing racetrack_centerline.json for authored track path")
+    static func buildGeometry(
+        from guides: USDZTrackGuides,
+        definition: USDZTrackDefinition,
+        relativeTo root: Entity
+    ) -> USDZTrackGeometry? {
+        guard let centerline3D = RaceTrackCenterlineLoader.loadPoints(baseName: definition.centerlineBaseName) else {
+            logger.error("Missing \(definition.centerlineBaseName, privacy: .public).json for authored track path")
             return nil
         }
 
         let resampled3D = resamplePolyline3D(centerline3D, targetCount: 320)
         let resampledXZ = resampled3D.map { SIMD2($0.x, $0.z) }
-        let roadVertices = meshVerticesXZ(in: guides.road, relativeTo: root)
-        let drivableHalfWidth = estimateDrivableHalfWidth(
-            centerline: resampledXZ,
-            roadVertices: roadVertices,
-            roadblock: guides.roadblock.map { meshVerticesXZ(in: $0, relativeTo: root) }
-        )
+
+        let barrierVertices = guides.barrierEntities.flatMap {
+            meshVerticesXZ(in: $0, relativeTo: root)
+        }
+
+        let drivableHalfWidth: Float
+        if !barrierVertices.isEmpty {
+            drivableHalfWidth = estimateHalfWidthFromBarriers(
+                centerline: resampledXZ,
+                barrierVertices: barrierVertices
+            )
+        } else if let road = guides.road {
+            let roadVertices = meshVerticesXZ(in: road, relativeTo: root)
+            drivableHalfWidth = estimateDrivableHalfWidth(
+                centerline: resampledXZ,
+                roadVertices: roadVertices,
+                roadblock: guides.roadblock.map { meshVerticesXZ(in: $0, relativeTo: root) }
+            )
+        } else {
+            drivableHalfWidth = 0.04
+        }
 
         let surfaceY = estimateSurfaceY(
             centerlineEntity: guides.centerLine,
             roadEntity: guides.road,
+            barrierEntities: guides.barrierEntities,
             relativeTo: root
         )
 
@@ -85,8 +115,8 @@ enum USDZTrackGuideParser {
         }
 
         guard let layout = SampledCenterlineLayout(
-            presetId: RaceTrackCatalog.usdzTrackId,
-            displayName: "Racetrack",
+            presetId: definition.id,
+            displayName: definition.title,
             points3D: resampled3D,
             drivableHalfWidth: drivableHalfWidth,
             surfaceY: surfaceY,
@@ -97,7 +127,7 @@ enum USDZTrackGuideParser {
         }
 
         logger.info(
-            "Built sampled track from curve JSON: \(resampled3D.count, privacy: .public) points, width \(drivableHalfWidth, privacy: .public), finish \(finishArcLength, privacy: .public)"
+            "Built sampled track from curve JSON: \(resampled3D.count, privacy: .public) points, width \(drivableHalfWidth, privacy: .public), surfaceY \(surfaceY, privacy: .public), finish \(finishArcLength, privacy: .public)"
         )
         return USDZTrackGeometry(sampled: layout)
     }
@@ -108,7 +138,40 @@ enum USDZTrackGuideParser {
         }
     }
 
+    static func trackRelevantBounds(in root: Entity) -> BoundingBox? {
+        let entities = trackRelevantEntities(in: root)
+        guard let first = entities.first else { return nil }
+
+        var combined = first.visualBounds(relativeTo: root)
+        for entity in entities.dropFirst() {
+            combined = combined.union(entity.visualBounds(relativeTo: root))
+        }
+        return combined
+    }
+
     // MARK: - Entity lookup
+
+    private static func isTrackRelevantEntityName(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        if centerLineNames.contains(lowered)
+            || roadNames.contains(lowered)
+            || roadblockNames.contains(lowered)
+            || startFinishNames.contains(lowered) {
+            return true
+        }
+        return lowered.hasPrefix(roadBarrierPrefix) || lowered.hasPrefix("road_")
+    }
+
+    private static func trackRelevantEntities(in root: Entity) -> [Entity] {
+        var results: [Entity] = []
+        collectEntities(in: root) { name, entity in
+            guard isTrackRelevantEntityName(name) else { return }
+            if entity is ModelEntity || !entity.children.isEmpty {
+                results.append(entity)
+            }
+        }
+        return results
+    }
 
     static func findEntity(in root: Entity, matchingAnyOf names: [String]) -> Entity? {
         let lowered = Set(names.map { $0.lowercased() })
@@ -123,6 +186,29 @@ enum USDZTrackGuideParser {
             }
         }
         return nil
+    }
+
+    private static func findEntities(in root: Entity, matchingPrefix prefix: String) -> [Entity] {
+        let loweredPrefix = prefix.lowercased()
+        var results: [Entity] = []
+        collectEntities(in: root) { name, entity in
+            if name.lowercased().hasPrefix(loweredPrefix) {
+                results.append(entity)
+            }
+        }
+        return results
+    }
+
+    private static func collectEntities(
+        in root: Entity,
+        visitor: (String, Entity) -> Void
+    ) {
+        if !root.name.isEmpty {
+            visitor(root.name, root)
+        }
+        for child in root.children {
+            collectEntities(in: child, visitor: visitor)
+        }
     }
 
     // MARK: - Mesh extraction
@@ -181,17 +267,44 @@ enum USDZTrackGuideParser {
 
     private static func estimateSurfaceY(
         centerlineEntity: Entity,
-        roadEntity: Entity,
+        roadEntity: Entity?,
+        barrierEntities: [Entity],
         relativeTo root: Entity
     ) -> Float {
         var ys: [Float] = []
         collectMeshVertices(in: centerlineEntity, relativeTo: root) { ys.append($0.y) }
-        collectMeshVertices(in: roadEntity, relativeTo: root) { ys.append($0.y) }
+        if let roadEntity = roadEntity {
+            collectMeshVertices(in: roadEntity, relativeTo: root) { ys.append($0.y) }
+        }
+        for barrier in barrierEntities {
+            collectMeshVertices(in: barrier, relativeTo: root) { ys.append($0.y) }
+        }
         guard !ys.isEmpty else { return 0.03 }
 
         let sorted = ys.sorted()
         let median = sorted[sorted.count / 2]
         return max(0.01, median)
+    }
+
+    private static func estimateHalfWidthFromBarriers(
+        centerline: [SIMD2<Float>],
+        barrierVertices: [SIMD2<Float>]
+    ) -> Float {
+        guard !barrierVertices.isEmpty else { return 0.04 }
+
+        var laterals: [Float] = []
+        laterals.reserveCapacity(barrierVertices.count)
+
+        for vertex in barrierVertices {
+            let nearest = nearestOnPolyline(centerline, to: vertex)
+            let lateral = abs(simd_dot(vertex - nearest.point, nearest.right))
+            laterals.append(lateral)
+        }
+
+        laterals.sort()
+        let percentileIndex = min(laterals.count - 1, Int(Float(laterals.count) * 0.92))
+        let halfWidth = laterals[percentileIndex]
+        return max(0.02, halfWidth - 0.012)
     }
 
     // MARK: - Centerline ordering

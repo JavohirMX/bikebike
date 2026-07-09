@@ -71,8 +71,8 @@ enum RaceTrackAssetLoader {
             if let guides = USDZTrackGuideParser.parseGuides(in: prepared),
                let geometry = USDZTrackGuideParser.buildGeometry(
                 from: guides,
-                relativeTo: prepared,
-                
+                definition: definition,
+                relativeTo: prepared
                ) {
                 loadedTracks[definition.id] = LoadedTrack(templateEntity: prepared, templateGeometry: geometry)
                 logger.info("Loaded \(modelFileName, privacy: .public) using guide+curve-json")
@@ -169,7 +169,6 @@ enum RaceTrackAssetLoader {
 
         let bounds = loaded.visualBounds(relativeTo: nil)
         let minY = bounds.center.y - bounds.extents.y / 2
-
         loaded.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
         root.addChild(loaded)
 
