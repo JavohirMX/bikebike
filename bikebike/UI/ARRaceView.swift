@@ -31,7 +31,7 @@ struct ARRaceView: View {
             if appState.phase == .racing {
                 RaceHUDView()
             }
-            if appState.isLoadingTrackAssets {
+            if appState.isLoadingTrackAssets || (appState.phase == .placement && appState.arController.isPreparingPlacementAssets) {
                 VStack {
                     Spacer()
                     HStack(spacing: 10) {

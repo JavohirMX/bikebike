@@ -181,6 +181,14 @@ final class NetworkSessionManager {
         listener.service = NWListener.Service(name: nil, type: Self.bonjourType, domain: nil, txtRecord: txt)
     }
 
+    func updateAdvertisedRaceConfig(trackId: String, lapCount: Int) {
+        guard isHost, let listener, var txt = bonjourTXT else { return }
+        txt["track"] = trackId
+        txt["laps"] = "\(lapCount)"
+        bonjourTXT = txt
+        listener.service = NWListener.Service(name: nil, type: Self.bonjourType, domain: nil, txtRecord: txt)
+    }
+
     func send(_ envelope: RaceEnvelope, reliable: Bool, to peerId: String) {
         guard let data = try? LengthPrefixedMessageCodec.encode(envelope) else { return }
         guard let connection = connections.values.first(where: { $0.peerId == peerId && $0.isReady }) else { return }

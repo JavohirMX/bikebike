@@ -226,6 +226,7 @@ def extract_mesh_bounds_points(
 
 
 def normalize_track_root(points: Iterable[tuple[float, float, float]], mesh_points: list[tuple[float, float, float]]) -> list[list[float]]:
+    # Must stay aligned with USDZTrackGuideParser.trackPlacementBounds in Swift.
     if not mesh_points:
         raise RuntimeError("Could not derive scene bounds from meshes")
 

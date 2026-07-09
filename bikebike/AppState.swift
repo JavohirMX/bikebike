@@ -453,7 +453,6 @@ final class AppState: RaceSessionDelegate {
         syncPlayerColors()
         trackPlaced = false
         sessionHasStarted = true
-        Task { await RaceTrackFactory.preloadAssets() }
         let info = SessionInfo(
             sessionId: raceSession.localDisplayName,
             hostName: raceSession.localDisplayName,
@@ -479,7 +478,6 @@ final class AppState: RaceSessionDelegate {
         isSessionConnected = false
         connectedHostName = nil
         sessionHasStarted = true
-        Task { await RaceTrackFactory.preloadAssets() }
         raceSession.startBrowsing()
     }
 
@@ -541,32 +539,41 @@ final class AppState: RaceSessionDelegate {
     }
 
     func confirmPlacement() {
+        guard !isLoadingTrackAssets else { return }
         guard arController.canConfirmPlacement else {
             placementError = "No surface detected yet. Keep scanning the table."
             return
         }
-        guard let result = arController.confirmPlacement() else {
-            placementError = "Could not place track — scan the surface again."
-            return
-        }
-        placementError = nil
-        trackPlaced = true
-        lastTrackTransform = result.transform
-        lastTrackScale = result.scale
-        lastTrackPresetId = result.presetId
-        raceConfig.trackId = result.presetId
-        arController.setSelectedTrack(id: result.presetId)
-        placementScale = result.scale
-        if role == .host {
-            let returnPhase = placementReturnPhase ?? .hostSetup
-            placementReturnPhase = nil
-            phase = returnPhase
-            Task {
-                await broadcastTrackPlacedWithWorldMap(transform: result.transform, scale: result.scale, presetId: result.presetId)
+        Task { @MainActor in
+            isLoadingTrackAssets = true
+            defer { isLoadingTrackAssets = false }
+
+            guard let result = await arController.confirmPlacement() else {
+                placementError = "Could not load the selected track — try placing it again."
+                return
             }
-        } else {
-            placementReturnPhase = nil
-            Task { await startRace() }
+
+            placementError = nil
+            trackPlaced = true
+            lastTrackTransform = result.transform
+            lastTrackScale = result.scale
+            lastTrackPresetId = result.presetId
+            raceConfig.trackId = result.presetId
+            arController.setSelectedTrack(id: result.presetId)
+            placementScale = result.scale
+            if role == .host {
+                let returnPhase = placementReturnPhase ?? .hostSetup
+                placementReturnPhase = nil
+                phase = returnPhase
+                await broadcastTrackPlacedWithWorldMap(
+                    transform: result.transform,
+                    scale: result.scale,
+                    presetId: result.presetId
+                )
+            } else {
+                placementReturnPhase = nil
+                await startRace()
+            }
         }
     }
 
@@ -669,10 +676,22 @@ final class AppState: RaceSessionDelegate {
 
     func selectTrack(_ trackId: String) {
         let normalized = RaceTrackCatalog.normalizedTrackId(trackId)
+        guard !trackPlaced else { return }
         raceConfig.trackId = normalized
-        if !trackPlaced {
-            arController.setSelectedTrack(id: normalized)
-        }
+        syncAdvertisedRaceConfigIfHosting()
+    }
+
+    func setLapCount(_ lapCount: Int) {
+        raceConfig.lapCount = lapCount
+        syncAdvertisedRaceConfigIfHosting()
+    }
+
+    private func syncAdvertisedRaceConfigIfHosting() {
+        guard role == .host, sessionHasStarted else { return }
+        raceSession.updateAdvertisedRaceConfig(
+            trackId: raceConfig.trackId,
+            lapCount: raceConfig.lapCount
+        )
     }
 
     func applyInputTick(deltaTime: Float) {
@@ -798,11 +817,6 @@ final class AppState: RaceSessionDelegate {
             arController.setSelectedTrack(id: raceConfig.trackId)
             cancelLobbySync()
             lobbySyncErrorMessage = nil
-            Task {
-                isLoadingTrackAssets = true
-                await ensureTrackAssetsLoaded(for: raceConfig.trackId)
-                isLoadingTrackAssets = false
-            }
 
         case .joinReject:
             guard role == .guest, let payload = try? envelope.decode(JoinRejectPayload.self) else { return }
