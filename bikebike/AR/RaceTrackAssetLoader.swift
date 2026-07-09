@@ -20,6 +20,7 @@ enum RaceTrackAssetLoader {
 
     private static var loadedTracks: [String: LoadedTrack] = [:]
     private static var preloadTask: Task<Void, Never>?
+    private static var perTrackLoadTasks: [String: Task<Void, Never>] = [:]
     private static var loadCancellables: [String: AnyCancellable] = [:]
 
     static func hasLoaded(trackId: String) -> Bool {
@@ -44,12 +45,33 @@ enum RaceTrackAssetLoader {
             defer { preloadTask = nil }
 
             for definition in RaceTrackCatalog.usdzTracks {
-                guard loadedTracks[definition.id] == nil else { continue }
-                await loadTrack(definition)
+                await preloadTrack(id: definition.id)
             }
         }
 
         preloadTask = task
+        await task.value
+    }
+
+    static func preloadTrack(id trackId: String) async {
+        let normalized = RaceTrackCatalog.normalizedTrackId(trackId)
+        guard RaceTrackCatalog.isUSDZTrackId(normalized) else { return }
+        if hasLoaded(trackId: normalized) { return }
+
+        if let existing = perTrackLoadTasks[normalized] {
+            await existing.value
+            return
+        }
+
+        guard let definition = RaceTrackCatalog.usdzTrack(for: normalized) else { return }
+
+        let task = Task { @MainActor in
+            defer { perTrackLoadTasks[normalized] = nil }
+            guard !hasLoaded(trackId: normalized) else { return }
+            await loadTrack(definition)
+        }
+
+        perTrackLoadTasks[normalized] = task
         await task.value
     }
 
@@ -233,6 +255,41 @@ enum RaceTrackFactory {
 
     static func geometry(for trackId: String) -> any RaceTrackGeometry {
         geometry(for: trackId, scale: 1.0)
+    }
+
+    /// Host-authoritative placement: uses `presetId` exactly — no USDZ→procedural fallback.
+    static func makeSyncedTrackEntity(for presetId: String, scale: Float) -> Entity? {
+        let normalized = RaceTrackCatalog.normalizedTrackId(presetId)
+        if RaceTrackCatalog.isUSDZTrackId(normalized) {
+            return RaceTrackAssetLoader.makeTrackEntity(for: normalized, scale: scale)
+        }
+        if normalized == ProceduralTrack.presetId {
+            return ProceduralTrack.makeOvalLoopTrack(scale: scale)
+        }
+        return nil
+    }
+
+    /// Host-authoritative geometry: uses `presetId` exactly — no USDZ→procedural fallback.
+    static func syncedGeometry(for presetId: String, scale: Float = 1.0) -> (any RaceTrackGeometry)? {
+        let normalized = RaceTrackCatalog.normalizedTrackId(presetId)
+        let base: (any RaceTrackGeometry)?
+        if RaceTrackCatalog.isUSDZTrackId(normalized) {
+            base = RaceTrackAssetLoader.geometry(for: normalized)
+        } else if normalized == ProceduralTrack.presetId {
+            base = ProceduralTrackDefinition()
+        } else {
+            base = nil
+        }
+
+        guard let base else { return nil }
+        guard abs(scale - 1) > 0.0001 else { return base }
+        if let usdz = base as? USDZTrackGeometry {
+            return usdz.scaled(by: scale)
+        }
+        if let procedural = base as? ProceduralTrackDefinition {
+            return procedural.scaled(by: scale)
+        }
+        return base
     }
 
     static func makeTrackEntity(for trackId: String, scale: Float, opacity: Float? = nil) -> Entity {

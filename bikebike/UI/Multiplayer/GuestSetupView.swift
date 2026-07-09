@@ -31,7 +31,7 @@ struct GuestSetupView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             // Viewfinder and text overlay
-            if appState.targetHostName == nil && !appState.isSessionConnected && !appState.isRelocalizing {
+            if appState.targetHostName == nil && !appState.isSessionConnected && !appState.isRelocalizing && !appState.isLoadingTrackAssets {
                 VStack(spacing: 16) {
                     RoundedRectangle(cornerRadius: 24)
                         .stroke(Color(hex: "3A8FD4") ?? .blue, lineWidth: 4)
@@ -44,8 +44,13 @@ struct GuestSetupView: View {
                 }
             }
             
-            // Connecting or Relocalizing States
-            if appState.isRelocalizing {
+            // Connecting, loading track assets, or relocalizing
+            if appState.isLoadingTrackAssets {
+                statusOverlay(
+                    title: "Loading track...",
+                    message: "Preparing the race track from the host."
+                )
+            } else if appState.isRelocalizing {
                 statusOverlay(
                     title: "Aligning to table...",
                     message: "Point your phone at the same table as the host."
@@ -158,6 +163,17 @@ struct GuestSetupView: View {
         .environment(PreviewData.appState {
             $0.phase = .guestSetup
             $0.role = .guest
+        })
+}
+
+#Preview("Loading Track") {
+    GuestSetupView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestSetup
+            $0.role = .guest
+            $0.isSessionConnected = true
+            $0.isLoadingTrackAssets = true
+            $0.connectedHostName = "Talin's iPhone"
         })
 }
 

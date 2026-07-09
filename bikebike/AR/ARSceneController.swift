@@ -269,29 +269,35 @@ final class ARSceneController {
         ghostAnchor.transform.matrix = matrix
     }
 
-    func placeTrackFromSync(transform: TransformPacket, scale: Float = 1.0, presetId: String? = nil) {
-        let trackId = presetId ?? selectedTrackId
+    @discardableResult
+    func placeTrackFromSync(transform: TransformPacket, scale: Float = 1.0, presetId: String? = nil) -> Bool {
+        let trackId = RaceTrackCatalog.normalizedTrackId(presetId ?? selectedTrackId)
         guard arView != nil else {
             pendingTrack = (transform, scale, trackId)
-            return
+            return false
         }
         removeGhost()
         removeTrack()
+
+        guard let track = RaceTrackFactory.makeSyncedTrackEntity(for: trackId, scale: scale),
+              let geometry = RaceTrackFactory.syncedGeometry(for: trackId, scale: scale) else {
+            return false
+        }
 
         var matrix = simd_float4x4(transform.rotation.simd)
         matrix.columns.3 = SIMD4(transform.position.x, transform.position.y, transform.position.z, 1)
 
         let anchor = AnchorEntity(world: matrix)
-        let track = RaceTrackFactory.makeTrackEntity(for: trackId, scale: scale)
         anchor.addChild(track)
         arView?.scene.addAnchor(anchor)
         trackAnchor = anchor
-        selectedTrackId = RaceTrackCatalog.normalizedTrackId(trackId)
+        selectedTrackId = trackId
         trackScale = scale
-        trackGeometry = RaceTrackFactory.geometry(for: trackId, scale: scale)
+        trackGeometry = geometry
         trackConfirmed = true
         isPlacementMode = false
         stopPlaneDetectionForRacing()
+        return true
     }
 
     func applyWorldMap(_ worldMap: ARWorldMap, session: ARSession) {

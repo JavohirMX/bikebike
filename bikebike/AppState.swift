@@ -34,6 +34,7 @@ final class AppState: RaceSessionDelegate {
     var driverSelectionError: String?
     var trackPlaced = false
     var isRelocalizing = false
+    var isLoadingTrackAssets = false
     var relocalizationMessage: String?
     private var lastTrackTransform: TransformPacket?
     private var lastTrackScale: Float = 1.0
@@ -438,6 +439,7 @@ final class AppState: RaceSessionDelegate {
         syncPlayerColors()
         trackPlaced = false
         sessionHasStarted = true
+        Task { await RaceTrackFactory.preloadAssets() }
         let info = SessionInfo(
             sessionId: raceSession.localDisplayName,
             hostName: raceSession.localDisplayName,
@@ -463,6 +465,7 @@ final class AppState: RaceSessionDelegate {
         isSessionConnected = false
         connectedHostName = nil
         sessionHasStarted = true
+        Task { await RaceTrackFactory.preloadAssets() }
         raceSession.startBrowsing()
     }
 
@@ -750,6 +753,11 @@ final class AppState: RaceSessionDelegate {
             arController.setSelectedTrack(id: raceConfig.trackId)
             cancelLobbySync()
             lobbySyncErrorMessage = nil
+            Task {
+                isLoadingTrackAssets = true
+                await ensureTrackAssetsLoaded(for: raceConfig.trackId)
+                isLoadingTrackAssets = false
+            }
 
         case .joinReject:
             guard role == .guest, let payload = try? envelope.decode(JoinRejectPayload.self) else { return }
@@ -1060,18 +1068,22 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func broadcastTrackPlacedWithWorldMap(transform: TransformPacket, scale: Float, presetId: String) async {
-        var chunkCount = 0
+        var chunks: [Data] = []
         if let mapData = await captureWorldMapData() {
-            let chunks = WorldMapTransfer.chunk(data: mapData)
-            chunkCount = chunks.count
-            for (index, chunk) in chunks.enumerated() {
-                let payload = WorldMapChunkPayload(chunkIndex: index, totalChunks: chunks.count, data: chunk)
-                if let envelope = try? raceSession.encode(type: .worldMapChunk, payload: payload) {
-                    raceSession.send(envelope, reliable: true)
-                }
+            chunks = WorldMapTransfer.chunk(data: mapData)
+        }
+        broadcastTrackPlaced(
+            transform: transform,
+            scale: scale,
+            presetId: presetId,
+            worldMapChunkCount: chunks.count
+        )
+        for (index, chunk) in chunks.enumerated() {
+            let payload = WorldMapChunkPayload(chunkIndex: index, totalChunks: chunks.count, data: chunk)
+            if let envelope = try? raceSession.encode(type: .worldMapChunk, payload: payload) {
+                raceSession.send(envelope, reliable: true)
             }
         }
-        broadcastTrackPlaced(transform: transform, scale: scale, presetId: presetId, worldMapChunkCount: chunkCount)
     }
 
     private func captureWorldMapData() async -> Data? {
@@ -1087,12 +1099,20 @@ final class AppState: RaceSessionDelegate {
         }
     }
 
+    private func ensureTrackAssetsLoaded(for trackId: String) async {
+        let normalized = RaceTrackCatalog.normalizedTrackId(trackId)
+        guard RaceTrackCatalog.isUSDZTrackId(normalized) else { return }
+        await RaceTrackAssetLoader.preloadTrack(id: normalized)
+    }
+
     private func handleTrackPlaced(_ payload: TrackPlacedPayload) {
         pendingTrackPayload = payload
-        worldMapChunks = [:]
+        if expectedWorldMapChunks != payload.worldMapChunkCount {
+            worldMapChunks = [:]
+        }
         expectedWorldMapChunks = payload.worldMapChunkCount
         if payload.worldMapChunkCount == 0 {
-            applyTrackPlacement(payload)
+            Task { await applyTrackPlacement(payload) }
         } else {
             isRelocalizing = true
             relocalizationMessage = "Aligning to host's table…"
@@ -1104,7 +1124,7 @@ final class AppState: RaceSessionDelegate {
     private func tryApplyPendingTrackPlacement() {
         guard let payload = pendingTrackPayload else { return }
         guard payload.worldMapChunkCount > 0 else {
-            applyTrackPlacement(payload)
+            Task { await applyTrackPlacement(payload) }
             return
         }
         guard arController.isARViewAttached else { return }
@@ -1116,14 +1136,30 @@ final class AppState: RaceSessionDelegate {
         startRelocalizationTimeout()
     }
 
-    private func applyTrackPlacement(_ payload: TrackPlacedPayload) {
+    private func applyTrackPlacement(_ payload: TrackPlacedPayload) async {
         cancelRelocalizationTimeout()
         isRelocalizing = false
         relocalizationMessage = nil
-        raceConfig.trackId = RaceTrackCatalog.normalizedTrackId(payload.presetId)
-        lastTrackPresetId = raceConfig.trackId
-        arController.setSelectedTrack(id: raceConfig.trackId)
-        arController.placeTrackFromSync(transform: payload.transform, scale: payload.scale, presetId: raceConfig.trackId)
+
+        let presetId = RaceTrackCatalog.normalizedTrackId(payload.presetId)
+        isLoadingTrackAssets = true
+        await ensureTrackAssetsLoaded(for: presetId)
+        isLoadingTrackAssets = false
+
+        raceConfig.trackId = presetId
+        lastTrackPresetId = presetId
+        arController.setSelectedTrack(id: presetId)
+
+        let placed = arController.placeTrackFromSync(
+            transform: payload.transform,
+            scale: payload.scale,
+            presetId: presetId
+        )
+        guard placed else {
+            lobbySyncErrorMessage = "Could not load track — try rejoining"
+            return
+        }
+
         trackPlaced = true
         lastTrackTransform = payload.transform
         lastTrackScale = payload.scale
@@ -1151,12 +1187,12 @@ final class AppState: RaceSessionDelegate {
 
     private func applyTrackPlacementFallback(_ payload: TrackPlacedPayload) {
         relocalizationMessage = "Could not align — track placed approximately. Point both phones at the same table."
-        applyTrackPlacement(payload)
+        Task { await applyTrackPlacement(payload) }
     }
 
     private func onRelocalizationComplete() {
         guard isRelocalizing, let payload = pendingTrackPayload else { return }
-        applyTrackPlacement(payload)
+        Task { await applyTrackPlacement(payload) }
     }
 
     private func startRelocalizationTimeout() {
@@ -1176,6 +1212,7 @@ final class AppState: RaceSessionDelegate {
     private func resetWorldMapState() {
         cancelRelocalizationTimeout()
         isRelocalizing = false
+        isLoadingTrackAssets = false
         relocalizationMessage = nil
         pendingTrackPayload = nil
         worldMapChunks = [:]

@@ -31,7 +31,21 @@ struct ARRaceView: View {
             if appState.phase == .racing {
                 RaceHUDView()
             }
-            if appState.isRelocalizing, let message = appState.relocalizationMessage {
+            if appState.isLoadingTrackAssets {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading track...")
+                            .font(.subheadline)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .padding(.bottom, 24)
+                }
+                .allowsHitTesting(false)
+            } else if appState.isRelocalizing, let message = appState.relocalizationMessage {
                 VStack {
                     Spacer()
                     HStack(spacing: 10) {
