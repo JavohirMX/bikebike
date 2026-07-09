@@ -21,6 +21,8 @@ struct RootView: View {
                 SoloLapSelectView()
             case .multiplayerRolePicker:
                 MultiplayerRolePickerView()
+            case .multiplayerNickname:
+                MultiplayerNicknameView()
             case .permissionPrimer:
                 PermissionPrimerView()
             case .multiplayerLapSelect:

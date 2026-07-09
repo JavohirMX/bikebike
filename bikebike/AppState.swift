@@ -74,7 +74,9 @@ final class AppState: RaceSessionDelegate {
     private var browseHelpTask: Task<Void, Never>?
     private var qrJoinTimeoutTask: Task<Void, Never>?
     private var lobbySyncTask: Task<Void, Never>?
-    private var pendingMultiplayerRole: PlayerRole?
+    private(set) var pendingMultiplayerRole: PlayerRole?
+
+    private static let playerNicknameKey = "bikebike.playerNickname"
     private var pendingRaceStart = false
     private var lastRemotePoseTimestamp: [String: TimeInterval] = [:]
 
@@ -186,7 +188,24 @@ final class AppState: RaceSessionDelegate {
 
     func selectMultiplayerRole(_ selectedRole: PlayerRole) {
         pendingMultiplayerRole = selectedRole
+        phase = .multiplayerNickname
+    }
+
+    func savedPlayerNickname() -> String {
+        UserDefaults.standard.string(forKey: Self.playerNicknameKey) ?? ""
+    }
+
+    func confirmMultiplayerNickname(_ nickname: String) {
+        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1...16).contains(trimmed.count) else { return }
+        guard raceSession.setPlayerDisplayName(trimmed) else { return }
+        UserDefaults.standard.set(trimmed, forKey: Self.playerNicknameKey)
         continueFromPermissionPrimer()
+    }
+
+    func backFromMultiplayerNickname() {
+        pendingMultiplayerRole = nil
+        phase = .multiplayerRolePicker
     }
 
     func backFromPermissionPrimer() {
@@ -272,7 +291,7 @@ final class AppState: RaceSessionDelegate {
         qrJoinErrorMessage = nil
         if phase == .home {
             pendingMultiplayerRole = .guest
-            phase = .permissionPrimer
+            phase = .multiplayerNickname
         } else if phase == .guestSetup {
             startQRJoinTimeout()
             tryAutoJoinDiscoveredSessions()

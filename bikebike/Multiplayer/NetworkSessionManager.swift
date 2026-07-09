@@ -35,12 +35,20 @@ final class NetworkSessionManager {
     private var activeConnectSessionId: String?
 
     private let localPeerId: String
-    private let deviceDisplayName: String
+    private var deviceDisplayName: String
 
     /// Unique player identity used in game messages and car state.
     var localPlayerId: String { localPeerId }
     /// Device name used for Bonjour discovery and QR codes.
     var localDisplayName: String { deviceDisplayName }
+
+    @discardableResult
+    func setPlayerDisplayName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        deviceDisplayName = trimmed
+        return true
+    }
     var connectedPeerIds: [String] { Array(connectedPeerIdSet) }
     var isBrowsing: Bool { browser != nil }
 
