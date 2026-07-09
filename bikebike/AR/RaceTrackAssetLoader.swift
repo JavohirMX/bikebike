@@ -189,8 +189,10 @@ enum RaceTrackAssetLoader {
         // Blender USD exports often keep the tabletop layout in the XY plane; lay it on ARKit's XZ floor.
         loaded.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
 
-        let bounds = loaded.visualBounds(relativeTo: nil)
-        let minY = bounds.center.y - bounds.extents.y / 2
+        // World-space bounds after rotation — parent-local bounds still reflect tabletop axes.
+        let bounds = USDZTrackGuideParser.trackPlacementBounds(in: loaded)
+            ?? loaded.visualBounds(relativeTo: nil)
+        let minY = bounds.min.y
         loaded.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
         root.addChild(loaded)
 

@@ -149,6 +149,30 @@ enum USDZTrackGuideParser {
         return combined
     }
 
+    /// Bounds for snapping the track onto the AR floor. Uses road/barrier mesh vertices only
+    /// so BasisCurves centerline guides cannot inflate the box (matches extract_centerline.py).
+    /// Samples world-space vertices after the tabletop-to-floor rotation is applied.
+    static func trackPlacementBounds(in root: Entity) -> BoundingBox? {
+        var positions: [SIMD3<Float>] = []
+        for entity in trackRelevantEntities(in: root) {
+            guard !centerLineNames.contains(entity.name.lowercased()) else { continue }
+            collectMeshVerticesInWorldSpace(in: entity) { positions.append($0) }
+        }
+        return boundingBox(for: positions)
+    }
+
+    private static func boundingBox(for positions: [SIMD3<Float>]) -> BoundingBox? {
+        guard let first = positions.first else { return nil }
+
+        var minCorner = first
+        var maxCorner = first
+        for position in positions.dropFirst() {
+            minCorner = simd_min(minCorner, position)
+            maxCorner = simd_max(maxCorner, position)
+        }
+        return BoundingBox(min: minCorner, max: maxCorner)
+    }
+
     // MARK: - Entity lookup
 
     private static func isTrackRelevantEntityName(_ name: String) -> Bool {
@@ -219,6 +243,23 @@ enum USDZTrackGuideParser {
             result.append(SIMD2(position.x, position.z))
         }
         return dedupePoints(result, tolerance: 0.002)
+    }
+
+    private static func collectMeshVerticesInWorldSpace(
+        in entity: Entity,
+        visitor: (SIMD3<Float>) -> Void
+    ) {
+        if let modelEntity = entity as? ModelEntity,
+           let mesh = modelEntity.model?.mesh,
+           let positions = meshVertexPositions(from: mesh) {
+            for local in positions {
+                visitor(modelEntity.convert(position: local, to: nil))
+            }
+        }
+
+        for child in entity.children {
+            collectMeshVerticesInWorldSpace(in: child, visitor: visitor)
+        }
     }
 
     private static func collectMeshVertices(
