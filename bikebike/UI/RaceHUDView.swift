@@ -120,7 +120,7 @@ struct PlacementOverlay: View {
 
             Spacer()
 
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 PlacementTrackStepper()
 
                 BikeBikePillButton(
@@ -132,14 +132,15 @@ struct PlacementOverlay: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 24)
+            .padding(.bottom, 12)
         }
-        .safeAreaPadding(.bottom, 8)
+        .safeAreaPadding(.bottom, 4)
     }
 
     private var topBar: some View {
         ZStack {
             MultiplayerBanner(title: "Place Track")
+                .frame(height: 64)
                 .padding(.horizontal, 48)
 
             HStack {

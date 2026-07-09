@@ -11,10 +11,8 @@ struct ReceiptPanel<Content: View>: View {
     var body: some View {
         ZStack(alignment: .top) {
             Image("receipt-panel")
-                .resizable()
-                .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                .clipped()
+                .resizable(capInsets: EdgeInsets(top: 60, leading: 0, bottom: 60, trailing: 0), resizingMode: .stretch)
+                .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 content()

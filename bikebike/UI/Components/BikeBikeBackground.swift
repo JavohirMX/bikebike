@@ -9,10 +9,14 @@ struct BikeBikeBackground: View {
     var blurRadius: CGFloat = 0
 
     var body: some View {
-        Image("bg-tropical")
-            .resizable()
-            .scaledToFill()
-            .blur(radius: blurRadius)
+        Color.clear
+            .overlay(
+                Image("bg-tropical")
+                    .resizable()
+                    .scaledToFill()
+                    .blur(radius: blurRadius)
+            )
+            .clipped()
             .ignoresSafeArea()
     }
 }
