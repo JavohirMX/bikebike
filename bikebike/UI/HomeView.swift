@@ -29,7 +29,8 @@ struct HomeView: View {
                             title: "Singleplayer",
                             systemImage: "person.fill",
                             style: .yellow,
-                            isEnabled: !buttonsDisabled
+                            isEnabled: !buttonsDisabled,
+                            glowStartDelay: 0.3
                         ) {
                             appState.triggerHomeDeparture(.solo)
                             appState.startSoloPractice()
@@ -39,7 +40,8 @@ struct HomeView: View {
                             title: "Multiplayer",
                             systemImage: "person.3.fill",
                             style: .blue,
-                            isEnabled: !buttonsDisabled
+                            isEnabled: !buttonsDisabled,
+                            glowStartDelay: 0.85
                         ) {
                             appState.triggerHomeDeparture(.multiplayer)
                             appState.beginPlayTogether()
