@@ -13,8 +13,10 @@ struct SoloLapSelectView: View {
         ZStack {
             BikeBikeBackground()
 
-            HomeBikeScene(mode: .parked)
-                .padding(.horizontal, 24)
+            if appState.homeDeparture == nil {
+                HomeBikeScene(mode: .parked)
+                    .padding(.horizontal, 24)
+            }
 
             HStack {
                 Spacer()
@@ -47,7 +49,7 @@ struct SoloLapSelectView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            BikeBikeBackButton { appState.goHome() }
+            BikeBikeBackButton { appState.backFromSoloLapSelect() }
                 .padding(.leading, 32)
                 .padding(.top, 24)
                 .ignoresSafeArea()

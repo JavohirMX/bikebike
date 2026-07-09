@@ -64,6 +64,7 @@ struct HostSetupView: View {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 showReceipt = true
             }
+            await CarModelLoader.preloadAll()
         }
     }
 
@@ -112,9 +113,30 @@ struct HostSetupView: View {
                 instructionRow(2, "Open the app on the other phone")
                 instructionRow(3, "Click the Join Game option")
                 instructionRow(4, "Scan the QR to get in to the group")
-                instructionRow(5, "Enter user nickname")
+                instructionRow(5, "Pick your driver below")
             }
             .padding(.top, 8)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your Driver")
+                    .font(BikeBikeTheme.bodyFont(size: 16))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+
+                DriverSelectGrid(
+                    selectedDriverId: appState.localSelectedDriverId,
+                    takenDriverIds: appState.takenDriverIds,
+                    takenByName: appState.takenDriverNames,
+                    compact: true
+                ) { driverId in
+                    appState.selectDriver(driverId)
+                }
+
+                if let error = appState.driverSelectionError {
+                    Text(error)
+                        .font(BikeBikeTheme.captionFont(size: 12))
+                        .foregroundStyle(.red)
+                }
+            }
 
             Spacer(minLength: 0)
 

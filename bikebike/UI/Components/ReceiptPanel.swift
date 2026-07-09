@@ -41,20 +41,24 @@ struct ReceiptDashedDivider: View {
 struct PlayerAvatarGrid: View {
     let players: [PlayerProfile]
 
-    private let avatarNames = ["rider-talin", "rider-ish"]
-
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            ForEach(Array(players.enumerated()), id: \.element.peerId) { index, player in
+            ForEach(players) { player in
                 HStack(spacing: 8) {
-                    Image(avatarNames[index % avatarNames.count])
+                    Image(DriverCatalog.resolvedImageName(forDriverId: player.driverId))
                         .resizable()
                         .scaledToFit()
                         .frame(width: 36, height: 36)
-                    Text(player.displayName)
-                        .font(BikeBikeTheme.captionFont(size: 13))
-                        .foregroundStyle(BikeBikeTheme.darkBlue)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(player.displayName)
+                            .font(BikeBikeTheme.captionFont(size: 13))
+                            .foregroundStyle(BikeBikeTheme.darkBlue)
+                            .lineLimit(1)
+                        Text(DriverCatalog.driver(for: player.driverId).displayName)
+                            .font(BikeBikeTheme.captionFont(size: 11))
+                            .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.6))
+                            .lineLimit(1)
+                    }
                 }
             }
         }

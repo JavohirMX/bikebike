@@ -17,6 +17,8 @@ struct RootView: View {
             switch appState.phase {
             case .home:
                 HomeView()
+            case .soloDriverSelect:
+                SoloDriverSelectView()
             case .soloLapSelect:
                 SoloLapSelectView()
             case .multiplayerRolePicker:

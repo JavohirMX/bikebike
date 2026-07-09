@@ -31,6 +31,7 @@ final class AppState: RaceSessionDelegate {
     var targetHostName: String?
     var qrJoinErrorMessage: String?
     var lobbySyncErrorMessage: String?
+    var driverSelectionError: String?
     var trackPlaced = false
     var isRelocalizing = false
     var relocalizationMessage: String?
@@ -78,6 +79,22 @@ final class AppState: RaceSessionDelegate {
     private var lastRemotePoseTimestamp: [String: TimeInterval] = [:]
 
     var lobbyReady: Bool { players.count >= 2 }
+
+    var localSelectedDriverId: String {
+        players.first { $0.peerId == raceSession.localPlayerId }?.driverId ?? DriverCatalog.loadPersistedDriverId()
+    }
+
+    var takenDriverIds: Set<String> {
+        DriverCatalog.takenDriverIds(by: players, excluding: raceSession.localPlayerId)
+    }
+
+    var takenDriverNames: [String: String] {
+        var names: [String: String] = [:]
+        for player in players where player.peerId != raceSession.localPlayerId {
+            names[player.driverId] = player.displayName
+        }
+        return names
+    }
 
     init() {
         raceSession.delegate = self
@@ -145,6 +162,7 @@ final class AppState: RaceSessionDelegate {
         targetHostName = nil
         qrJoinErrorMessage = nil
         lobbySyncErrorMessage = nil
+        driverSelectionError = nil
         pendingMultiplayerRole = nil
         cancelBrowseHelpTimer()
         cancelQRJoinTimeout()
@@ -285,7 +303,59 @@ final class AppState: RaceSessionDelegate {
         players = [localPlayer(isHost: true)]
         placementError = nil
         placementScale = 1.0
+        driverSelectionError = nil
+        phase = .soloDriverSelect
+    }
+
+    func confirmSoloDriverSelect() {
         phase = .soloLapSelect
+    }
+
+    func backFromSoloDriverSelect() {
+        goHome()
+    }
+
+    func backFromSoloLapSelect() {
+        phase = .soloDriverSelect
+    }
+
+    func selectDriver(_ driverId: String) {
+        guard DriverCatalog.all.contains(where: { $0.id == driverId }) else { return }
+
+        let localId = raceSession.localPlayerId
+        let taken = DriverCatalog.takenDriverIds(by: players, excluding: localId)
+        if taken.contains(driverId) {
+            driverSelectionError = "Driver already taken"
+            return
+        }
+
+        driverSelectionError = nil
+        DriverCatalog.persistDriverId(driverId)
+
+        let driver = DriverCatalog.driver(for: driverId)
+        if let index = players.firstIndex(where: { $0.peerId == localId }) {
+            players[index].driverId = driverId
+            players[index].carColorHex = driver.accentColorHex
+        } else {
+            upsertPlayer(localPlayer(isHost: role != .guest, driverId: driverId))
+        }
+
+        broadcastLocalPlayerProfile()
+    }
+
+    private func broadcastLocalPlayerProfile() {
+        let localId = raceSession.localPlayerId
+        guard let profile = players.first(where: { $0.peerId == localId }) else { return }
+        guard let envelope = try? raceSession.encode(type: .playerProfile, payload: PlayerProfilePayload(player: profile)) else { return }
+
+        switch role {
+        case .host:
+            raceSession.send(envelope, reliable: true)
+        case .guest:
+            raceSession.sendToHost(envelope, reliable: true)
+        case .solo:
+            break
+        }
     }
 
     func confirmSoloLapSelect() {
@@ -625,8 +695,15 @@ final class AppState: RaceSessionDelegate {
         switch envelope.type {
         case .joinRequest:
             guard role == .host, let payload = try? envelope.decode(JoinRequestPayload.self) else { return }
-            upsertPlayer(payload.player)
-            sendJoinAccept(forGuestPeerId: payload.player.peerId)
+            var player = payload.player
+            let taken = DriverCatalog.takenDriverIds(by: players, excluding: player.peerId)
+            if taken.contains(player.driverId) {
+                let replacementId = DriverCatalog.firstAvailableDriverId(excluding: taken)
+                player.driverId = replacementId
+                player.carColorHex = DriverCatalog.accentColorHex(for: replacementId)
+            }
+            upsertPlayer(player)
+            sendJoinAccept(forGuestPeerId: player.peerId)
 
         case .joinAccept:
             guard let payload = try? envelope.decode(JoinAcceptPayload.self) else { return }
@@ -700,7 +777,18 @@ final class AppState: RaceSessionDelegate {
 
         case .playerProfile:
             guard let payload = try? envelope.decode(PlayerProfilePayload.self) else { return }
-            upsertPlayer(payload.player)
+            if role == .host, peerId != raceSession.localPlayerId {
+                let taken = DriverCatalog.takenDriverIds(by: players, excluding: payload.player.peerId)
+                if taken.contains(payload.player.driverId) {
+                    return
+                }
+                upsertPlayer(payload.player)
+                if let envelope = try? raceSession.encode(type: .playerProfile, payload: payload) {
+                    raceSession.send(envelope, reliable: true, excluding: peerId)
+                }
+            } else {
+                upsertPlayer(payload.player)
+            }
         }
     }
 
@@ -800,8 +888,11 @@ final class AppState: RaceSessionDelegate {
                 updated.append(profile)
             } else {
                 updated[idx].displayName = profile.displayName
+                updated[idx].driverId = profile.driverId
                 if !updated[idx].isHost {
                     updated[idx].carColorHex = profile.carColorHex
+                } else {
+                    updated[idx].carColorHex = DriverCatalog.accentColorHex(for: profile.driverId)
                 }
             }
         } else {
@@ -814,7 +905,9 @@ final class AppState: RaceSessionDelegate {
     private func registerGuestPeer(_ peerId: String) {
         guard role == .host else { return }
         guard peerId != raceSession.localPlayerId, !peerId.hasPrefix("guest-") else { return }
-        upsertPlayer(PlayerProfile.local(peerId: peerId, name: peerId, isHost: false))
+        let taken = DriverCatalog.takenDriverIds(by: players, excluding: nil)
+        let driverId = DriverCatalog.firstAvailableDriverId(excluding: taken)
+        upsertPlayer(PlayerProfile.local(peerId: peerId, name: peerId, isHost: false, driverId: driverId))
     }
 
     private func reconcileConnectedPeers() {
@@ -839,10 +932,13 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func spawnAllCars() async {
-        await CarModelLoader.preload()
+        let driverIds = Set(players.map(\.driverId))
+        for driverId in driverIds {
+            await CarModelLoader.preload(driverId: driverId)
+        }
         carStates.removeAll()
         for (index, player) in players.enumerated() {
-            await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
+            await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index)
             carStates.append(CarState(
                 playerId: player.peerId,
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
@@ -875,18 +971,23 @@ final class AppState: RaceSessionDelegate {
         refreshLeaderboard()
     }
 
-    private func localPlayer(isHost: Bool, colorHex: String? = nil) -> PlayerProfile {
-        PlayerProfile.local(
+    private func localPlayer(isHost: Bool, colorHex: String? = nil, driverId: String? = nil) -> PlayerProfile {
+        let resolvedDriverId = driverId ?? DriverCatalog.loadPersistedDriverId()
+        let driver = DriverCatalog.driver(for: resolvedDriverId)
+        return PlayerProfile.local(
             peerId: raceSession.localPlayerId,
             name: raceSession.localDisplayName,
             isHost: isHost,
-            colorHex: colorHex ?? PlayerColors.hostHex
+            colorHex: colorHex ?? driver.accentColorHex,
+            driverId: driver.id
         )
     }
 
     private func syncPlayerColors() {
         guard role == .host else { return }
-        PlayerColors.assign(to: &players)
+        for index in players.indices {
+            players[index].carColorHex = DriverCatalog.accentColorHex(for: players[index].driverId)
+        }
     }
 
     private func broadcastTrackPlaced(transform: TransformPacket, scale: Float, presetId: String, worldMapChunkCount: Int) {
@@ -1028,7 +1129,7 @@ final class AppState: RaceSessionDelegate {
         guard phase == .racing, !arController.hasCar(playerId: playerId) else { return }
         guard let index = players.firstIndex(where: { $0.peerId == playerId }) else { return }
         let player = players[index]
-        await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)
+        await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index)
         if !carStates.contains(where: { $0.playerId == playerId }) {
             carStates.append(CarState(
                 playerId: player.peerId,

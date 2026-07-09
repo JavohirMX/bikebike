@@ -325,12 +325,11 @@ final class ARSceneController {
         cars[playerId] != nil
     }
 
-    func spawnCar(playerId: String, colorHex: String, gridIndex: Int) async {
+    func spawnCar(playerId: String, driverId: String, gridIndex: Int) async {
         guard let trackAnchor else { return }
         removeCar(playerId: playerId)
 
-        let color = UIColor(hex: colorHex) ?? .systemRed
-        let car = await CarModelLoader.makeCar(color: color)
+        let car = await CarModelLoader.makeCar(driverId: driverId)
         car.name = "Car_\(playerId)"
 
         let spawn = trackGeometry.spawnTransform(gridIndex: gridIndex)
@@ -679,20 +678,6 @@ private extension ARSceneController {
     func removeBoostEmitter(for playerId: String) {
         boostEmitterEntities[playerId]?.removeFromParent()
         boostEmitterEntities.removeValue(forKey: playerId)
-    }
-}
-
-private extension UIColor {
-    convenience init?(hex: String) {
-        var hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        if hex.hasPrefix("#") { hex = String(hex.dropFirst()) }
-        guard hex.count == 6, let int = UInt64(hex, radix: 16) else { return nil }
-        self.init(
-            red: CGFloat((int >> 16) & 0xFF) / 255,
-            green: CGFloat((int >> 8) & 0xFF) / 255,
-            blue: CGFloat(int & 0xFF) / 255,
-            alpha: 1
-        )
     }
 }
 

@@ -133,7 +133,9 @@ struct BoostButton: View {
                 isPressed: isActive,
                 action: onTap
             )
+            
         }
+        .offset(x: 30, y: 10)
     }
 }
 

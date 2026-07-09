@@ -145,12 +145,39 @@ private struct LobbyShell: View {
 
             List(appState.players) { player in
                 HStack {
-                    PlayerColorDot(hex: player.carColorHex, size: 12)
+                    PlayerColorDot(hex: DriverCatalog.accentColorHex(for: player.driverId), size: 12)
                     Text(player.displayName)
+                    Text("· \(DriverCatalog.driver(for: player.driverId).displayName)")
+                        .foregroundStyle(.secondary)
                     if player.isHost { Text("(Host)").foregroundStyle(.secondary) }
                 }
             }
             .listStyle(.plain)
+
+            if appState.role == .host || appState.role == .guest {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Your Driver")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    DriverSelectGrid(
+                        selectedDriverId: appState.localSelectedDriverId,
+                        takenDriverIds: appState.takenDriverIds,
+                        takenByName: appState.takenDriverNames,
+                        compact: true
+                    ) { driverId in
+                        appState.selectDriver(driverId)
+                    }
+                    .padding(.horizontal)
+
+                    if let error = appState.driverSelectionError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal)
+                    }
+                }
+            }
 
             if showPlaceTrack {
                 Button("Place Track", action: onPlace)

@@ -51,10 +51,7 @@ struct GuestSetupView: View {
                     message: "Point your phone at the same table as the host."
                 )
             } else if appState.isSessionConnected {
-                statusOverlay(
-                    title: "Connected",
-                    message: appState.trackPlaced ? "Track placed — waiting for host..." : "Joined lobby — waiting for track..."
-                )
+                connectedLobbyOverlay
             } else if let host = appState.targetHostName {
                 statusOverlay(
                     title: "Connecting...",
@@ -96,6 +93,45 @@ struct GuestSetupView: View {
         }
     }
     
+    private var connectedLobbyOverlay: some View {
+        VStack(spacing: 20) {
+            Text("Connected")
+                .font(BikeBikeTheme.titleFont(size: 24))
+                .foregroundStyle(.white)
+
+            Text(appState.trackPlaced ? "Track placed — pick your driver" : "Joined lobby — pick your driver")
+                .font(BikeBikeTheme.bodyFont(size: 16))
+                .foregroundStyle(.white.opacity(0.85))
+                .multilineTextAlignment(.center)
+
+            DriverSelectGrid(
+                selectedDriverId: appState.localSelectedDriverId,
+                takenDriverIds: appState.takenDriverIds,
+                takenByName: appState.takenDriverNames,
+                compact: true
+            ) { driverId in
+                appState.selectDriver(driverId)
+            }
+            .padding(.horizontal, 24)
+
+            if let error = appState.driverSelectionError {
+                Text(error)
+                    .font(BikeBikeTheme.captionFont(size: 13))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.75))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: 420)
+        .background(.ultraThinMaterial)
+        .environment(\.colorScheme, .dark)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(radius: 10)
+    }
+
     private func statusOverlay(title: String, message: String) -> some View {
         VStack(spacing: 16) {
             ProgressView()
