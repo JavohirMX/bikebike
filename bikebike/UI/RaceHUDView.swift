@@ -12,21 +12,36 @@ struct RaceHUDView: View {
         VStack {
             topBar
             Spacer()
-            controls
+            if !appState.isLocalPlayerFinished {
+                controls
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .overlay(alignment: .top) {
-            if let time = appState.dnfTimeRemaining {
-                Text("Race ends in \(time)s!")
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.red.opacity(0.85))
-                    .clipShape(Capsule())
-                    .padding(.top, 72)
+            VStack(spacing: 8) {
+                if appState.isLocalPlayerFinished {
+                    Text("Spectating...")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.blue.opacity(0.85))
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                }
+                
+                if let time = appState.dnfTimeRemaining {
+                    Text("Race ends in \(time)s!")
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.85))
+                        .clipShape(Capsule())
+                }
             }
+            .padding(.top, 72)
         }
     }
 
@@ -43,8 +58,11 @@ struct RaceHUDView: View {
 
             let localLap = appState.carStates.first { $0.playerId == appState.raceSession.localPlayerId }?.currentLap ?? 0
             let displayLap = min(localLap + 1, appState.raceConfig.lapCount)
-            Text("Lap \(displayLap)/\(appState.raceConfig.lapCount)")
-                .font(.system(.title3, design: .rounded).bold())
+            BikeBikeHUDPill(
+                title: "Lap \(displayLap)/\(appState.raceConfig.lapCount)",
+                showsStroke: false,
+                action: nil
+            )
 
             Spacer()
 
@@ -178,7 +196,7 @@ struct ResultsView: View {
                     .foregroundStyle(BikeBikeTheme.darkBlue)
                     .padding(.top, 48)
 
-                Text(formatSoloTime(appState.elapsedTime))
+                Text(formatSoloTime(appState.leaderboard.first?.fastestLapTime ?? 0))
                     .font(BikeBikeTheme.titleFont(size: 64))
                     .foregroundStyle(BikeBikeTheme.darkBlue)
                     .padding(.bottom, 24)

@@ -52,10 +52,14 @@ struct SteerArrowButtons: View {
     }
 
     private func rampSteer(toward target: Float, deltaTime: Float) {
-        if steer < target {
-            steer = min(target, steer + steerRampRate * deltaTime)
-        } else if steer > target {
-            steer = max(target, steer - steerRampRate * deltaTime)
+        if target == 0 {
+            steer = 0
+        } else {
+            if steer < target {
+                steer = min(target, steer + steerRampRate * deltaTime)
+            } else if steer > target {
+                steer = max(target, steer - steerRampRate * deltaTime)
+            }
         }
     }
 }
