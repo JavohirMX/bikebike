@@ -48,6 +48,8 @@ final class AppState: RaceSessionDelegate {
     var countdownLabel: String?
     var boostState = BoostState()
     var boostRequested = false
+    var dnfTimeRemaining: Int?
+    private var dnfTimerTask: Task<Void, Never>?
 
     var pendingPlacementStart = false
     private var placementReturnPhase: AppPhase?
@@ -1202,6 +1204,7 @@ final class AppState: RaceSessionDelegate {
                 HapticManager.finishLine()
                 AudioManager.shared.play(.finishFanfare)
             }
+            startDNFTimerIfNeeded()
             checkRaceEnd()
         }
         refreshLeaderboard()
@@ -1216,9 +1219,32 @@ final class AppState: RaceSessionDelegate {
             carStates[idx].finished = true
             carStates[idx].finishTime = payload.totalTime
             carStates[idx].status = .finished
+            startDNFTimerIfNeeded()
         }
         refreshLeaderboard()
         if role == .host { checkRaceEnd() }
+    }
+
+    private func startDNFTimerIfNeeded() {
+        guard dnfTimerTask == nil, role != .solo else { return }
+        dnfTimerTask = Task { @MainActor in
+            for i in (1...30).reversed() {
+                if Task.isCancelled { return }
+                dnfTimeRemaining = i
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if Task.isCancelled { return }
+            
+            dnfTimeRemaining = nil
+            for i in carStates.indices {
+                if carStates[i].status == .racing {
+                    carStates[i].status = .dnf
+                    carStates[i].finished = true
+                }
+            }
+            refreshLeaderboard()
+            checkRaceEnd()
+        }
     }
 
     private func checkRaceEnd() {
@@ -1233,6 +1259,9 @@ final class AppState: RaceSessionDelegate {
         stopTimers()
         setRaceIdleTimerDisabled(false)
         AudioManager.shared.stopAll()
+        dnfTimerTask?.cancel()
+        dnfTimerTask = nil
+        dnfTimeRemaining = nil
         let payload = RaceEndPayload(leaderboard: leaderboard, reason: "allFinished")
         if role == .host, let envelope = try? raceSession.encode(type: .raceEnd, payload: payload) {
             raceSession.send(envelope, reliable: true)

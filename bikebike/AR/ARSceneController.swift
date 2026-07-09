@@ -543,7 +543,13 @@ final class ARSceneController {
         }
 
         let delta = trackGeometry.forwardArcDelta(from: lastMeasured, to: measured)
-        guard delta > 0, delta <= maxProgressStepPerFrame else { return }
+        // Ensure the step is forward and not a massive teleport (e.g., > 10% of the track in one frame)
+        let maxStep = trackGeometry.perimeterLength * 0.10
+        guard delta > 0, delta <= maxStep else { 
+            // Update lastMeasured so we don't get permanently stuck if there was a jump
+            lastMeasuredArc[playerId] = measured
+            return 
+        }
 
         lastMeasuredArc[playerId] = measured
         distanceSinceLap[playerId] = (distanceSinceLap[playerId] ?? 0) + delta
@@ -563,7 +569,10 @@ final class ARSceneController {
         let hint = lastMeasuredArc[playerId]
         let measured = trackGeometry.arcLength(for: local, hintArcLength: hint)
         let finish = trackGeometry.finishArcLength
-        let nearFinish = trackGeometry.forwardArcDelta(from: finish, to: measured) < 0.12
+        let deltaFromFinish = trackGeometry.forwardArcDelta(from: finish, to: measured)
+        
+        // Ensure we crossed the finish line and are in the first 15% of the lap
+        let nearFinish = deltaFromFinish < (trackGeometry.perimeterLength * 0.15)
 
         if passedCheckpoint[playerId] == true, distance >= minLapDistance, nearFinish {
             let now = Date().timeIntervalSince1970

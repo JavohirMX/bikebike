@@ -80,6 +80,7 @@ enum PlayerStatus: String, Codable {
     case waiting
     case racing
     case finished
+    case dnf
     case disconnected
 }
 
