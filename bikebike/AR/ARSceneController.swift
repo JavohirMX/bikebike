@@ -448,7 +448,8 @@ final class ARSceneController {
             speed: result.speed,
             pedalAmount: result.pedalAmount,
             yaw: result.yaw,
-            pitch: result.pitch
+            pitch: result.pitch,
+            roll: result.roll
         )
 
         setBoostActive(playerId: playerId, active: boostActive)

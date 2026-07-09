@@ -10,6 +10,7 @@ struct BikeMovementState {
     var pedalAmount: Float
     var yaw: Float
     var pitch: Float
+    var roll: Float = 0
 }
 
 struct BikeMovementInput {
@@ -26,6 +27,7 @@ struct BikeMovementResult {
     var pedalAmount: Float
     var yaw: Float
     var pitch: Float
+    var roll: Float
     var hitWall: Bool
 }
 
@@ -44,6 +46,7 @@ enum BikeMovementModel {
     static let minSteerSpeed: Float = 0.05
     static let heightSmoothing: Float = 14
     static let pitchSmoothing: Float = 12
+    static let leanSmoothing: Float = 5
     static let pedalRampUp: Float = 0.5
     static let pedalRampDown: Float = 1.5
     static let maxLean: Float = 0.35
@@ -62,6 +65,7 @@ enum BikeMovementModel {
         var pedalAmount = state.pedalAmount
         var yaw = state.yaw
         var pitch = state.pitch
+        var roll = state.roll
         var localPos = localPosition
 
         if input.gasPressed {
@@ -133,7 +137,13 @@ enum BikeMovementModel {
             localPos.y = targetChassisY
         }
 
-        let roll = -input.steer * maxLean * steerFactor
+        if abs(input.steer) <= 0.02 {
+            roll = 0
+        } else {
+            let targetRoll = -input.steer * maxLean * steerFactor
+            let leanBlend = 1 - exp(-leanSmoothing * deltaTime)
+            roll = simd_mix(roll, targetRoll, leanBlend)
+        }
         let orientation = composeOrientation(yaw: yaw, pitch: pitch, roll: roll)
 
         return BikeMovementResult(
@@ -143,6 +153,7 @@ enum BikeMovementModel {
             pedalAmount: pedalAmount,
             yaw: yaw,
             pitch: pitch,
+            roll: roll,
             hitWall: hitWall
         )
     }
