@@ -504,7 +504,13 @@ final class ARSceneController {
         }
 
         let delta = trackGeometry.forwardArcDelta(from: lastMeasured, to: measured)
-        guard delta > 0, delta <= maxProgressStepPerFrame else { return }
+        // Ensure the step is forward and not a massive teleport (e.g., > 10% of the track in one frame)
+        let maxStep = trackGeometry.perimeterLength * 0.10
+        guard delta > 0, delta <= maxStep else { 
+            // Update lastMeasured so we don't get permanently stuck if there was a jump
+            lastMeasuredArc[playerId] = measured
+            return 
+        }
 
         lastMeasuredArc[playerId] = measured
         distanceSinceLap[playerId] = (distanceSinceLap[playerId] ?? 0) + delta
