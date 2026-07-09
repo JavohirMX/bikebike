@@ -10,6 +10,7 @@ import simd
 
 enum AppPhase: Equatable {
     case home
+    case soloDriverSelect
     case soloLapSelect
     case multiplayerRolePicker
     case permissionPrimer
@@ -20,8 +21,26 @@ enum AppPhase: Equatable {
     case hostLobby
     case guestLobby
     case placement
+    case countdown
     case racing
     case results
+}
+
+struct BoostState: Equatable {
+    var isActive: Bool = false
+    var durationRemaining: TimeInterval = 0
+    var cooldownRemaining: TimeInterval = 0
+
+    static let activeDuration: TimeInterval = 3.0
+    static let cooldownDuration: TimeInterval = 10.0
+    static let speedMultiplier: Float = 1.5
+
+    var isReady: Bool { !isActive && cooldownRemaining <= 0 }
+
+    var cooldownProgress: Double {
+        guard cooldownRemaining > 0 else { return 1 }
+        return 1 - (cooldownRemaining / Self.cooldownDuration)
+    }
 }
 
 enum PlayerRole {
@@ -72,10 +91,41 @@ struct PlayerProfile: Codable, Identifiable, Equatable {
     let peerId: String
     var displayName: String
     var carColorHex: String
+    var driverId: String
     var isHost: Bool
 
-    static func local(peerId: String, name: String, isHost: Bool, colorHex: String = PlayerColors.hostHex) -> PlayerProfile {
-        PlayerProfile(peerId: peerId, displayName: name, carColorHex: colorHex, isHost: isHost)
+    init(peerId: String, displayName: String, carColorHex: String, driverId: String, isHost: Bool) {
+        self.peerId = peerId
+        self.displayName = displayName
+        self.carColorHex = carColorHex
+        self.driverId = driverId
+        self.isHost = isHost
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        peerId = try container.decode(String.self, forKey: .peerId)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        carColorHex = try container.decode(String.self, forKey: .carColorHex)
+        driverId = try container.decodeIfPresent(String.self, forKey: .driverId) ?? DriverCatalog.default.id
+        isHost = try container.decode(Bool.self, forKey: .isHost)
+    }
+
+    static func local(
+        peerId: String,
+        name: String,
+        isHost: Bool,
+        colorHex: String? = nil,
+        driverId: String = DriverCatalog.loadPersistedDriverId()
+    ) -> PlayerProfile {
+        let resolvedDriver = DriverCatalog.driver(for: driverId)
+        return PlayerProfile(
+            peerId: peerId,
+            displayName: name,
+            carColorHex: colorHex ?? resolvedDriver.accentColorHex,
+            driverId: resolvedDriver.id,
+            isHost: isHost
+        )
     }
 }
 

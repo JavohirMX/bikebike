@@ -20,11 +20,11 @@ enum PreviewData {
     }
 
     static var host: PlayerProfile {
-        .local(peerId: "host-1", name: "Talin", isHost: true)
+        .local(peerId: "host-1", name: "Talin", isHost: true, driverId: "talin")
     }
 
     static var guest: PlayerProfile {
-        .local(peerId: "guest-1", name: "Ish", isHost: false, colorHex: PlayerColors.hex(forSlot: 1))
+        .local(peerId: "guest-1", name: "Ish", isHost: false, driverId: "ish")
     }
 
     static var players: [PlayerProfile] { [host, guest] }

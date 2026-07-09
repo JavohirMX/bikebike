@@ -25,6 +25,9 @@ struct ARRaceView: View {
             if appState.phase == .placement {
                 PlacementOverlay()
             }
+            if appState.phase == .countdown {
+                CountdownOverlay()
+            }
             if appState.phase == .racing {
                 RaceHUDView()
             }

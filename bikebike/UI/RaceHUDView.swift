@@ -6,12 +6,11 @@
 import SwiftUI
 
 struct RaceHUDView: View {
-  @Environment(AppState.self) private var appState
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         VStack {
             topBar
-            leaderboardPanel
             Spacer()
             controls
         }
@@ -33,20 +32,12 @@ struct RaceHUDView: View {
 
     private var topBar: some View {
         HStack {
-            Button {
-                appState.exitRace()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
-                }
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.black.opacity(0.45))
-            .clipShape(Capsule())
+            BikeBikeHUDPill(
+                title: "Back",
+                systemImage: "chevron.left",
+                showsStroke: false,
+                action: { appState.exitRace() }
+            )
 
             Spacer()
 
@@ -57,48 +48,23 @@ struct RaceHUDView: View {
 
             Spacer()
 
-            Text(formatTime(appState.elapsedTime))
-                .font(.system(.title3, design: .monospaced).bold())
+            BikeBikeHUDPill(
+                title: formatTime(appState.elapsedTime),
+                showsStroke: false,
+                monospacedDigits: true,
+                action: nil
+            )
         }
-        .padding(12)
-        .background(Color.black.opacity(0.55))
-        .foregroundStyle(.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var leaderboardPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(appState.leaderboard.prefix(4)) { entry in
-                HStack {
-                    Text("\(entry.rank).")
-                        .frame(width: 20, alignment: .leading)
-                    if let hex = appState.players.first(where: { $0.peerId == entry.playerId })?.carColorHex {
-                        PlayerColorDot(hex: hex, size: 8)
-                    }
-                    Text(entry.displayName)
-                    Spacer()
-                    Text("L\(entry.currentLap)")
-                    if let lap = entry.lastLapTime {
-                        Text(formatTime(lap))
-                            .monospacedDigit()
-                    }
-                }
-                .font(.caption.bold())
-            }
-        }
-        .padding(10)
-        .background(Color.black.opacity(0.55))
-        .foregroundStyle(.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .frame(maxWidth: 220, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var controls: some View {
         HStack(alignment: .bottom) {
-            GasBrakeControls(
+            LeftDriveControls(
                 gasPressed: Bindable(appState).gasPressed,
-                brake: Bindable(appState).brakeInput
+                boostCooldownProgress: appState.boostState.cooldownProgress,
+                boostReady: appState.boostState.isReady,
+                boostActive: appState.boostState.isActive,
+                onBoostTap: { appState.requestBoost() }
             )
             Spacer()
             SteerArrowButtons(
@@ -113,7 +79,6 @@ struct RaceHUDView: View {
         return String(format: "%d:%04.1f", minutes, seconds)
     }
 }
-
 struct PlacementOverlay: View {
     @Environment(AppState.self) private var appState
 

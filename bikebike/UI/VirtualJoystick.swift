@@ -11,6 +11,8 @@ struct SteerArrowButtons: View {
 
     private let steerRampRate: Float = 2.5
     private let tickInterval: TimeInterval = 1.0 / 60.0
+    private let buttonSize: CGFloat = 67
+    private let iconSize: CGFloat = 29
 
     @State private var leftPressed = false
     @State private var rightPressed = false
@@ -23,16 +25,26 @@ struct SteerArrowButtons: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            steerButton(systemName: "chevron.left", active: leftPressed) {
-                leftPressed = true
-            } onRelease: {
-                leftPressed = false
-            }
-            steerButton(systemName: "chevron.right", active: rightPressed) {
-                rightPressed = true
-            } onRelease: {
-                rightPressed = false
-            }
+            BikeBikeIconButton(
+                systemImage: "chevron.left",
+                style: .yellow,
+                size: buttonSize,
+                iconSize: iconSize,
+                isPressed: leftPressed,
+                showsStroke: false,
+                onPress: { leftPressed = true },
+                onRelease: { leftPressed = false }
+            )
+            BikeBikeIconButton(
+                systemImage: "chevron.right",
+                style: .yellow,
+                size: buttonSize,
+                iconSize: iconSize,
+                isPressed: rightPressed,
+                showsStroke: false,
+                onPress: { rightPressed = true },
+                onRelease: { rightPressed = false }
+            )
         }
         .onReceive(Timer.publish(every: tickInterval, on: .main, in: .common).autoconnect()) { _ in
             rampSteer(toward: steerTarget, deltaTime: Float(tickInterval))
@@ -46,69 +58,100 @@ struct SteerArrowButtons: View {
             steer = max(target, steer - steerRampRate * deltaTime)
         }
     }
+}
 
-    private func steerButton(
-        systemName: String,
-        active: Bool,
-        onPress: @escaping () -> Void,
-        onRelease: @escaping () -> Void
-    ) -> some View {
-        Image(systemName: systemName)
-            .font(.title2.bold())
-            .frame(width: 64, height: 64)
-            .background(active ? Color.orange : Color.black.opacity(0.45))
-            .foregroundStyle(.white)
-            .clipShape(Circle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in onPress() }
-                    .onEnded { _ in onRelease() }
-            )
+struct GasButton: View {
+    @Binding var gasPressed: Bool
+
+    var body: some View {
+        BikeBikeIconButton(
+            systemImage: "chevron.up.2",
+            style: .yellow,
+            size: 86,
+            iconSize: 36,
+            isPressed: gasPressed,
+            showsStroke: false,
+            onPress: { gasPressed = true },
+            onRelease: { gasPressed = false }
+        )
     }
 }
 
-struct GasBrakeControls: View {
+struct LeftDriveControls: View {
     @Binding var gasPressed: Bool
-    @Binding var brake: Float
+    let boostCooldownProgress: Double
+    let boostReady: Bool
+    let boostActive: Bool
+    let onBoostTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            controlButton(label: "GAS", active: gasPressed) {
-                gasPressed = true
-            } onRelease: {
-                gasPressed = false
-            }
-            controlButton(label: "BRK", active: brake > 0) {
-                brake = 1
-            } onRelease: {
-                brake = 0
-            }
+        VStack(alignment: .leading, spacing: 16) {
+            BoostButton(
+                cooldownProgress: boostCooldownProgress,
+                isReady: boostReady,
+                isActive: boostActive,
+                onTap: onBoostTap
+            )
+            .padding(.leading, 14)
+            GasButton(gasPressed: $gasPressed)
         }
     }
+}
 
-    private func controlButton(label: String, active: Bool, onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
-        Text(label)
-            .font(.headline.bold())
-            .frame(width: 64, height: 64)
-            .background(active ? Color.orange : Color.black.opacity(0.45))
-            .foregroundStyle(.white)
-            .clipShape(Circle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in onPress() }
-                    .onEnded { _ in onRelease() }
+struct BoostButton: View {
+    let cooldownProgress: Double
+    let isReady: Bool
+    let isActive: Bool
+    let onTap: () -> Void
+
+    private let boostSize: CGFloat = 53
+    private let ringSize: CGFloat = 62
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.25), lineWidth: 3)
+                .frame(width: ringSize, height: ringSize)
+            Circle()
+                .trim(from: 0, to: cooldownProgress)
+                .stroke(
+                    AngularGradient(
+                        colors: [Color(hex: "FF375F") ?? .pink, Color(hex: "FF9500") ?? .orange],
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .frame(width: ringSize, height: ringSize)
+
+            BikeBikeIconButton(
+                systemImage: "bolt.fill",
+                style: .blue,
+                size: boostSize,
+                iconSize: 22,
+                isEnabled: isReady,
+                isPressed: isActive,
+                action: onTap
             )
+            
+        }
+        .offset(x: 30, y: 10)
     }
 }
 
 #Preview("Race Controls") {
     @Previewable @State var steer: Float = 0
     @Previewable @State var gas = false
-    @Previewable @State var brake: Float = 0
     ZStack {
-        Color.gray
-        HStack {
-            GasBrakeControls(gasPressed: $gas, brake: $brake)
+        BikeBikeBackground(blurRadius: 4)
+        HStack(alignment: .bottom) {
+            LeftDriveControls(
+                gasPressed: $gas,
+                boostCooldownProgress: 0.6,
+                boostReady: true,
+                boostActive: false,
+                onBoostTap: {}
+            )
             Spacer()
             SteerArrowButtons(steer: $steer)
         }
