@@ -25,6 +25,8 @@ struct RootView: View {
                 MultiplayerRolePickerView()
             case .multiplayerNickname:
                 MultiplayerNicknameView()
+            case .multiplayerHostDriverSelect:
+                MultiplayerHostDriverSelectView()
             case .permissionPrimer:
                 PermissionPrimerView()
             case .multiplayerLapSelect:

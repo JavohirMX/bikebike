@@ -232,11 +232,16 @@ final class AppState: RaceSessionDelegate {
         phase = .multiplayerRolePicker
     }
 
+    func backFromMultiplayerHostDriverSelect() {
+        pendingMultiplayerRole = .host
+        phase = .multiplayerNickname
+    }
+
     func backFromMultiplayerLapSelect() {
         raceSession.stopAll()
         isSessionConnected = false
         sessionErrorMessage = nil
-        phase = .multiplayerRolePicker
+        phase = .multiplayerHostDriverSelect
     }
 
     func backFromHostSetup() {
@@ -261,8 +266,7 @@ final class AppState: RaceSessionDelegate {
 
         switch pending {
         case .host:
-            activateHosting()
-            phase = .multiplayerLapSelect
+            phase = .multiplayerHostDriverSelect
         case .guest:
             activateBrowsing()
             phase = .guestSetup
@@ -272,6 +276,11 @@ final class AppState: RaceSessionDelegate {
         default:
             break
         }
+    }
+
+    func confirmMultiplayerHostDriverSelect() {
+        activateHosting()
+        phase = .multiplayerLapSelect
     }
 
     func confirmMultiplayerLapSelect() {
