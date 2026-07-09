@@ -76,7 +76,11 @@ enum PreviewData {
             LeaderboardEntry(rank: 1, playerId: "host-1", displayName: "Talin", currentLap: 3,
                              lastLapTime: 11.2, totalTime: 35.6, status: .finished),
             LeaderboardEntry(rank: 2, playerId: "guest-1", displayName: "Ish", currentLap: 3,
-                             lastLapTime: 12.9, totalTime: 39.4, status: .finished)
+                             lastLapTime: 12.9, totalTime: 39.4, status: .finished),
+            LeaderboardEntry(rank: 3, playerId: "guest-2", displayName: "Ana", currentLap: 3,
+                             lastLapTime: 13.1, totalTime: 42.1, status: .finished),
+            LeaderboardEntry(rank: 4, playerId: "guest-3", displayName: "TheNoder", currentLap: 3,
+                             lastLapTime: 14.5, totalTime: 45.8, status: .finished)
         ]
     }
 

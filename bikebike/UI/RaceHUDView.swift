@@ -231,49 +231,108 @@ struct ResultsView: View {
         ZStack {
             BikeBikeBackground(blurRadius: 6)
 
-            VStack(spacing: 20) {
-                Spacer()
-
-                BikeBikeModalCard {
-                    HeadingBanner(title: "Leaderboard")
-                } content: {
-                    VStack(spacing: 0) {
-                        tableHeader
-
-                        ForEach(appState.leaderboard) { entry in
-                            tableRow(entry)
-                        }
-                    }
-                }
-                .bikeBikeScreenContent(maxWidth: 520)
-
-                ViewThatFits {
-                    HStack(spacing: 16) {
-                        BikeBikePillButton(title: "Exit", style: .blue) {
-                            appState.goHome()
-                        }
-                        .frame(width: 200)
-
-                        BikeBikePillButton(title: "Play Again", style: .yellow) {
-                            appState.playAgain()
-                        }
-                        .frame(width: 200)
-                    }
-
-                    VStack(spacing: 12) {
-                        BikeBikePillButton(title: "Exit", style: .blue) {
-                            appState.goHome()
-                        }
-
-                        BikeBikePillButton(title: "Play Again", style: .yellow) {
-                            appState.playAgain()
-                        }
-                    }
-                }
-                .bikeBikeScreenContent(maxWidth: 520)
-
-                Spacer()
+            if appState.role == .solo {
+                soloResultsPanel
+            } else {
+                multiplayerResultsPanel
             }
+        }
+    }
+
+    private var soloResultsPanel: some View {
+        VStack(spacing: 0) {
+            // Top Header Banner
+            MultiplayerBanner(title: "Food Delivered!")
+                .frame(height: 75)
+                .padding(.bottom, -12) // overlap the body
+                .zIndex(1)
+
+            // Body Container
+            VStack(spacing: 8) {
+                Text("Your fastest lap time")
+                    .font(BikeBikeTheme.bodyFont(size: 18))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+                    .padding(.top, 48)
+
+                Text(formatSoloTime(appState.elapsedTime))
+                    .font(BikeBikeTheme.titleFont(size: 64))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+                    .padding(.bottom, 24)
+            }
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "seal.fill")
+                    .resizable()
+                    .frame(width: 100, height: 100)
+                    .foregroundStyle(BikeBikeTheme.skyBlue)
+                    .rotationEffect(.degrees(15))
+                    .offset(x: 20, y: 20)
+            }
+            .background(Color(hex: "DDF2FE") ?? Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 32))
+            .padding(.bottom, 44) // Space for buttons
+        }
+        .bikeBikeScreenContent(maxWidth: 480)
+        .shadow(color: BikeBikeTheme.panelShadow, radius: 12, y: 6)
+        .overlay(alignment: .bottom) {
+            HStack(spacing: 40) {
+                BikeBikePillButton(title: "Exit", style: .blue) {
+                    appState.goHome()
+                }
+                .frame(width: 120)
+
+                BikeBikePillButton(title: "Play Again", style: .yellow) {
+                    appState.playAgain()
+                }
+                .frame(width: 180)
+            }
+            .offset(y: 24)
+        }
+    }
+
+    private var multiplayerResultsPanel: some View {
+        VStack(spacing: 0) {
+            // Top Header Banner
+            MultiplayerBanner(title: "Food Delivered")
+                .frame(height: 75) // Limit height so it doesn't span full width, making leaderboard look bigger
+                .padding(.bottom, -12) // slight overlap
+                .zIndex(1)
+
+            // Table Header
+            tableHeader
+                .zIndex(0)
+
+            // Body Section
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(appState.leaderboard) { entry in
+                        tableRow(entry)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 48) // Extra space so last row isn't hidden by buttons
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: 220)
+            .background(Color(hex: "EADAC2") ?? Color.white)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 24, bottomTrailingRadius: 24, topTrailingRadius: 0))
+        }
+        .bikeBikeScreenContent(maxWidth: 520)
+        .shadow(color: BikeBikeTheme.panelShadow, radius: 12, y: 6)
+        .overlay(alignment: .bottom) {
+            HStack(spacing: 40) {
+                BikeBikePillButton(title: "Exit", style: .blue) {
+                    appState.goHome()
+                }
+                .frame(width: 120)
+
+                BikeBikePillButton(title: "Play Again", style: .yellow) {
+                    appState.playAgain()
+                }
+                .frame(width: 180)
+            }
+            .offset(y: 24)
         }
     }
 
@@ -283,18 +342,18 @@ struct ResultsView: View {
                 .frame(width: 36, alignment: .center)
             Text("Player")
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 8)
             Text("Rating")
-                .frame(width: 90, alignment: .center)
+                .frame(width: 100, alignment: .center)
             Text("Time")
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: 100, alignment: .center)
         }
-        .font(BikeBikeTheme.captionFont(size: 13))
+        .font(BikeBikeTheme.titleFont(size: 20))
         .foregroundStyle(.white)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
         .background(BikeBikeTheme.skyBlue)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.bottom, 8)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 20))
     }
 
     private func tableRow(_ entry: LeaderboardEntry) -> some View {
@@ -305,20 +364,23 @@ struct ResultsView: View {
                 .frame(width: 36, alignment: .center)
 
             Text(entry.displayName)
-                .font(BikeBikeTheme.captionFont(size: 15))
-                .foregroundStyle(BikeBikeTheme.darkBlue)
+                .font(BikeBikeTheme.bodyFont(size: 18))
+                .foregroundStyle(Color(hex: "4A3D31") ?? .black)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 8)
 
             StarRatingView(rating: stars)
-                .frame(width: 90, alignment: .center)
+                .frame(width: 100, alignment: .center)
 
             Text(formatTime(entry.totalTime))
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                .foregroundStyle(BikeBikeTheme.darkBlue)
-                .frame(width: 80, alignment: .trailing)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .foregroundStyle(Color(hex: "4A3D31") ?? .black)
+                .frame(width: 100, alignment: .center)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Color.white.opacity(0.55))
+        .clipShape(Capsule())
     }
 
     private func formatTime(_ t: TimeInterval) -> String {
@@ -327,6 +389,13 @@ struct ResultsView: View {
         let minutes = (total % 3600) / 60
         let seconds = total % 60
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    private func formatSoloTime(_ t: TimeInterval) -> String {
+        let total = Int(t)
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        return String(format: "%02d:%02dm", minutes, seconds)
     }
 }
 
@@ -357,11 +426,21 @@ struct ResultsView: View {
     })
 }
 
-#Preview("Results") {
+#Preview("Multiplayer Results") {
     ResultsView()
         .environment(PreviewData.appState {
             $0.phase = .results
+            $0.role = .host // or guest
             $0.players = PreviewData.players
             $0.leaderboard = PreviewData.finishedLeaderboard
+        })
+}
+
+#Preview("Solo Results") {
+    ResultsView()
+        .environment(PreviewData.appState {
+            $0.phase = .results
+            $0.role = .solo
+            $0.elapsedTime = 733.0 // 12:13m
         })
 }

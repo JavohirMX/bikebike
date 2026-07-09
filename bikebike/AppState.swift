@@ -296,7 +296,7 @@ final class AppState: RaceSessionDelegate {
         case .solo:
             phase = .soloLapSelect
         case .host:
-            phase = .hostSetup
+            phase = .hostLobby
         case .guest:
             phase = .guestSetup
         }
