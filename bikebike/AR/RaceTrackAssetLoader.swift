@@ -11,25 +11,27 @@ import UIKit
 
 @MainActor
 enum RaceTrackAssetLoader {
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "bikebike", category: "RaceTrackAssetLoader")
-    private static let modelName = "racetrack"
-    private static let modelFileName = "racetrack.usdz"
-
-    private static var templateEntity: Entity?
-    private static var templateGeometry: USDZTrackGeometry?
-    private static var preloadTask: Task<Void, Never>?
-    private static var loadCancellable: AnyCancellable?
-
-    static var hasLoadedUSDZTrack: Bool {
-        templateEntity != nil && templateGeometry != nil
+    private struct LoadedTrack {
+        var templateEntity: Entity
+        var templateGeometry: USDZTrackGeometry
     }
 
-    static var geometry: USDZTrackGeometry? {
-        templateGeometry
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "bikebike", category: "RaceTrackAssetLoader")
+
+    private static var loadedTracks: [String: LoadedTrack] = [:]
+    private static var preloadTask: Task<Void, Never>?
+    private static var loadCancellables: [String: AnyCancellable] = [:]
+
+    static func hasLoaded(trackId: String) -> Bool {
+        loadedTracks[trackId] != nil
+    }
+
+    static func geometry(for trackId: String) -> USDZTrackGeometry? {
+        loadedTracks[trackId]?.templateGeometry
     }
 
     static func preload() async {
-        if hasLoadedUSDZTrack {
+        if loadedTracks.count == RaceTrackCatalog.usdzTracks.count {
             return
         }
 
@@ -41,27 +43,9 @@ enum RaceTrackAssetLoader {
         let task = Task { @MainActor in
             defer { preloadTask = nil }
 
-            do {
-                let loaded = try await loadTemplateEntity()
-                let prepared = prepareTrackRoot(from: loaded)
-
-                if let guides = USDZTrackGuideParser.parseGuides(in: prepared),
-                   let geometry = USDZTrackGuideParser.buildGeometry(from: guides, relativeTo: prepared) {
-                    templateEntity = prepared
-                    templateGeometry = geometry
-                    logger.info("Loaded \(modelFileName, privacy: .public) using guide+curve-json")
-                } else {
-                    let bounds = prepared.visualBounds(relativeTo: nil)
-                    guard let geometry = USDZTrackGeometry(footprint: SIMD2(bounds.extents.x, bounds.extents.z)) else {
-                        logger.error("Loaded \(modelFileName, privacy: .public) but could not derive track geometry")
-                        return
-                    }
-                    templateEntity = prepared
-                    templateGeometry = geometry
-                    logger.warning("Loaded \(modelFileName, privacy: .public) with footprint-fallback \(bounds.extents.x, privacy: .public)x\(bounds.extents.z, privacy: .public)")
-                }
-            } catch {
-                logger.error("Preload failed for \(modelFileName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            for definition in RaceTrackCatalog.usdzTracks {
+                guard loadedTracks[definition.id] == nil else { continue }
+                await loadTrack(definition)
             }
         }
 
@@ -69,15 +53,49 @@ enum RaceTrackAssetLoader {
         await task.value
     }
 
-    static func makeTrackEntity(scale: Float) -> Entity? {
-        guard let templateEntity else { return nil }
-        let root = templateEntity.clone(recursive: true)
+    static func makeTrackEntity(for trackId: String, scale: Float) -> Entity? {
+        guard let loaded = loadedTracks[trackId] else { return nil }
+        let root = loaded.templateEntity.clone(recursive: true)
         root.scale = SIMD3(repeating: scale)
         USDZTrackGuideParser.hideCenterLine(in: root)
         return root
     }
 
-    private static func resolveModelURL() -> URL? {
+    private static func loadTrack(_ definition: USDZTrackDefinition) async {
+        let modelFileName = "\(definition.modelName).usdz"
+
+        do {
+            let loaded = try await loadTemplateEntity(modelName: definition.modelName)
+            let prepared = prepareTrackRoot(from: loaded)
+
+            if let guides = USDZTrackGuideParser.parseGuides(in: prepared),
+               let geometry = USDZTrackGuideParser.buildGeometry(
+                from: guides,
+                definition: definition,
+                relativeTo: prepared
+               ) {
+                loadedTracks[definition.id] = LoadedTrack(templateEntity: prepared, templateGeometry: geometry)
+                logger.info("Loaded \(modelFileName, privacy: .public) using guide+curve-json")
+            } else {
+                let bounds = prepared.visualBounds(relativeTo: nil)
+                guard let geometry = USDZTrackGeometry(
+                    footprint: SIMD2(bounds.extents.x, bounds.extents.z),
+                    presetId: definition.id,
+                    displayName: definition.title
+                ) else {
+                    logger.error("Loaded \(modelFileName, privacy: .public) but could not derive track geometry")
+                    return
+                }
+                loadedTracks[definition.id] = LoadedTrack(templateEntity: prepared, templateGeometry: geometry)
+                logger.warning("Loaded \(modelFileName, privacy: .public) with footprint-fallback \(bounds.extents.x, privacy: .public)x\(bounds.extents.z, privacy: .public)")
+            }
+        } catch {
+            logger.error("Preload failed for \(modelFileName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func resolveModelURL(modelName: String) -> URL? {
+        let modelFileName = "\(modelName).usdz"
         let subdirectoryCandidates: [String?] = ["Resources", nil]
 
         for subdirectory in subdirectoryCandidates {
@@ -117,25 +135,25 @@ enum RaceTrackAssetLoader {
         return nil
     }
 
-    private static func loadTemplateEntity() async throws -> Entity {
-        guard let url = resolveModelURL() else {
+    private static func loadTemplateEntity(modelName: String) async throws -> Entity {
+        guard let url = resolveModelURL(modelName: modelName) else {
             throw CarModelLoadError.modelNotFound(modelName)
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            loadCancellable = Entity.loadAsync(contentsOf: url)
+            loadCancellables[modelName] = Entity.loadAsync(contentsOf: url)
                 .sink(
                     receiveCompletion: { completion in
                         switch completion {
                         case .finished:
                             break
                         case .failure(let error):
-                            loadCancellable = nil
+                            loadCancellables[modelName] = nil
                             continuation.resume(throwing: error)
                         }
                     },
                     receiveValue: { entity in
-                        loadCancellable = nil
+                        loadCancellables[modelName] = nil
                         continuation.resume(returning: entity)
                     }
                 )
@@ -146,15 +164,13 @@ enum RaceTrackAssetLoader {
         let root = Entity()
         root.name = "TrackRoot"
 
-        let visual = loaded.clone(recursive: true)
         // Blender USD exports often keep the tabletop layout in the XY plane; lay it on ARKit's XZ floor.
-        visual.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
+        loaded.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
 
-        let bounds = visual.visualBounds(relativeTo: nil)
+        let bounds = loaded.visualBounds(relativeTo: nil)
         let minY = bounds.center.y - bounds.extents.y / 2
-
-        visual.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
-        root.addChild(visual)
+        loaded.position = SIMD3(-bounds.center.x, -minY, -bounds.center.z)
+        root.addChild(loaded)
 
         return root
     }
@@ -162,33 +178,69 @@ enum RaceTrackAssetLoader {
 
 @MainActor
 enum RaceTrackFactory {
-    static var showsDebugBorders = true
+    static var showsDebugBorders: Bool {
+        #if DEBUG
+        return !DeviceMemoryPolicy.isConstrained
+        #else
+        false
+        #endif
+    }
 
     static func preloadAssets() async {
         await RaceTrackAssetLoader.preload()
     }
 
+    static func makePlacementGhost(for trackId: String, scale: Float) -> Entity {
+        if DeviceMemoryPolicy.isConstrained {
+            return makeTrackEntity(for: ProceduralTrack.presetId, scale: scale, opacity: 0.55)
+        }
+        return makeTrackEntity(for: trackId, scale: scale, opacity: 0.55)
+    }
+
+    static var usesFullTrackPlacementGhost: Bool {
+        !DeviceMemoryPolicy.isConstrained
+    }
+
     static func resolvedTrackId(for requestedTrackId: String) -> String {
         let normalized = RaceTrackCatalog.normalizedTrackId(requestedTrackId)
-        if normalized == RaceTrackCatalog.usdzTrackId, RaceTrackAssetLoader.hasLoadedUSDZTrack {
+        if RaceTrackCatalog.isUSDZTrackId(normalized), RaceTrackAssetLoader.hasLoaded(trackId: normalized) {
             return normalized
         }
-        return normalized == RaceTrackCatalog.usdzTrackId ? ProceduralTrack.presetId : normalized
+        if RaceTrackCatalog.isUSDZTrackId(normalized) {
+            return ProceduralTrack.presetId
+        }
+        return normalized
+    }
+
+    static func geometry(for trackId: String, scale: Float = 1.0) -> any RaceTrackGeometry {
+        let resolvedId = resolvedTrackId(for: trackId)
+        let base: any RaceTrackGeometry
+        if RaceTrackCatalog.isUSDZTrackId(resolvedId), let geometry = RaceTrackAssetLoader.geometry(for: resolvedId) {
+            base = geometry
+        } else {
+            base = ProceduralTrackDefinition()
+        }
+
+        guard abs(scale - 1) > 0.0001 else { return base }
+        if let usdz = base as? USDZTrackGeometry {
+            return usdz.scaled(by: scale)
+        }
+        if let procedural = base as? ProceduralTrackDefinition {
+            return procedural.scaled(by: scale)
+        }
+        return base
     }
 
     static func geometry(for trackId: String) -> any RaceTrackGeometry {
-        let resolvedId = resolvedTrackId(for: trackId)
-        if resolvedId == RaceTrackCatalog.usdzTrackId, let geometry = RaceTrackAssetLoader.geometry {
-            return geometry
-        }
-        return ProceduralTrackDefinition()
+        geometry(for: trackId, scale: 1.0)
     }
 
     static func makeTrackEntity(for trackId: String, scale: Float, opacity: Float? = nil) -> Entity {
         let resolvedId = resolvedTrackId(for: trackId)
 
         let entity: Entity
-        if resolvedId == RaceTrackCatalog.usdzTrackId, let loaded = RaceTrackAssetLoader.makeTrackEntity(scale: scale) {
+        if RaceTrackCatalog.isUSDZTrackId(resolvedId),
+           let loaded = RaceTrackAssetLoader.makeTrackEntity(for: resolvedId, scale: scale) {
             entity = loaded
         } else {
             entity = ProceduralTrack.makeOvalLoopTrack(scale: scale)
@@ -199,11 +251,18 @@ enum RaceTrackFactory {
         }
 
         if showsDebugBorders,
-           let overlay = TrackDebugVisualizer.makeOverlay(for: geometry(for: trackId)) {
+           let overlay = TrackDebugVisualizer.makeOverlay(for: geometry(for: trackId, scale: scale)) {
             entity.addChild(overlay)
         }
 
         return entity
+    }
+
+    static func stripOpacity(from entity: Entity) {
+        entity.components.remove(OpacityComponent.self)
+        for child in entity.children {
+            stripOpacity(from: child)
+        }
     }
 
     private static func applyOpacity(_ opacity: Float, to entity: Entity) {

@@ -44,15 +44,13 @@ final class AppState: RaceSessionDelegate {
     var elapsedTime: TimeInterval = 0
 
     var pendingPlacementStart = false
+    private var placementReturnPhase: AppPhase?
     var placementError: String?
     var placementScale: Float = 1.0
     var planeDetectionStatus: PlaneDetectionStatus = .scanning
     var hasDetectedPlane = false
     var trackingQuality: ARTrackingQuality = .normal
-
-    var canConfirmPlacement: Bool {
-        arController.canConfirmPlacement
-    }
+    var canConfirmPlacement = false
 
     let raceSession = NetworkSessionManager()
     let arController = ARSceneController()
@@ -82,14 +80,15 @@ final class AppState: RaceSessionDelegate {
             self?.handleLapCrossed(playerId: playerId)
         }
         arController.onPlaneStateUpdated = { [weak self] status, hasPlane, tracking in
-            self?.planeDetectionStatus = status
-            self?.hasDetectedPlane = hasPlane
-            self?.trackingQuality = tracking
+            guard let self else { return }
+            self.planeDetectionStatus = status
+            self.hasDetectedPlane = hasPlane
+            self.trackingQuality = tracking
+            self.canConfirmPlacement = self.arController.canConfirmPlacement
         }
         arController.onRelocalizationReady = { [weak self] in
             self?.onRelocalizationComplete()
         }
-        Task { await CarModelLoader.preload() }
     }
 
     // MARK: - Navigation
@@ -248,6 +247,7 @@ final class AppState: RaceSessionDelegate {
 
     func confirmSoloLapSelect() {
         arController.setSelectedTrack(id: raceConfig.trackId)
+        placementReturnPhase = .soloLapSelect
         pendingPlacementStart = true
         phase = .placement
     }
@@ -348,6 +348,7 @@ final class AppState: RaceSessionDelegate {
     func beginPlacement() {
         placementError = nil
         placementScale = 1.0
+        placementReturnPhase = phase
         arController.setSelectedTrack(id: raceConfig.trackId)
         pendingPlacementStart = true
         phase = .placement
@@ -372,11 +373,9 @@ final class AppState: RaceSessionDelegate {
         placementError = nil
         placementScale = 1.0
         arController.cancelPlacementPreview()
-        if role == .host {
-            phase = .hostSetup
-        } else {
-            goHome()
-        }
+        let returnPhase = placementReturnPhase ?? (role == .host ? .hostSetup : .soloLapSelect)
+        placementReturnPhase = nil
+        phase = returnPhase
     }
 
     func confirmPlacement() {
@@ -397,11 +396,14 @@ final class AppState: RaceSessionDelegate {
         arController.setSelectedTrack(id: result.presetId)
         placementScale = result.scale
         if role == .host {
-            phase = .hostSetup
+            let returnPhase = placementReturnPhase ?? .hostSetup
+            placementReturnPhase = nil
+            phase = returnPhase
             Task {
                 await broadcastTrackPlacedWithWorldMap(transform: result.transform, scale: result.scale, presetId: result.presetId)
             }
         } else {
+            placementReturnPhase = nil
             Task { await startRace() }
         }
     }
@@ -719,6 +721,7 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func spawnAllCars() async {
+        await CarModelLoader.preload()
         carStates.removeAll()
         for (index, player) in players.enumerated() {
             await arController.spawnCar(playerId: player.peerId, colorHex: player.carColorHex, gridIndex: index)

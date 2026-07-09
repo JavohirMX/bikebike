@@ -17,6 +17,7 @@ struct PlacementResult {
 @MainActor
 final class ARSceneController {
     private weak var arView: ARView?
+    private weak var sessionCoordinator: ARSessionCoordinator?
     private var trackAnchor: AnchorEntity?
     private var ghostAnchor: AnchorEntity?
     private var ghostTrackEntity: Entity?
@@ -30,6 +31,7 @@ final class ARSceneController {
     private var lastLapTimestamp: [String: TimeInterval] = [:]
     private var updateSubscription: (any Cancellable)?
     private var selectedTrackId: String = RaceTrackCatalog.defaultTrackId
+    private var trackScale: Float = 1.0
     private var trackGeometry: any RaceTrackGeometry = ProceduralTrackDefinition()
 
     var isPlacementMode = false
@@ -39,6 +41,7 @@ final class ARSceneController {
     var onRelocalizationReady: (() -> Void)?
 
     private var awaitingRelocalization = false
+    private var relocalizationTimer: Timer?
     private var pendingTrack: (transform: TransformPacket, scale: Float, presetId: String)?
     private var pendingWorldMap: ARWorldMap?
 
@@ -58,22 +61,29 @@ final class ARSceneController {
     private(set) var placementScale: Float = 1.0
     private var placementYaw: Float = 0
     private var placementPosition: SIMD3<Float>?
+    private var ghostUsesFullTrackPreview = false
+    private var placementAssetsReady = false
 
     func attach(to arView: ARView, sessionDelegate: ARSessionDelegate) {
         self.arView = arView
+        sessionCoordinator = sessionDelegate as? ARSessionCoordinator
         arView.environment.sceneUnderstanding.options = []
         arView.session.delegate = sessionDelegate
-        Task { @MainActor in
-            await CarModelLoader.preload()
-            await RaceTrackFactory.preloadAssets()
-            refreshTrackGeometry()
-        }
         flushPendingState(session: arView.session)
+    }
+
+    func preloadTrackIfNeeded() async {
+        await RaceTrackFactory.preloadAssets()
+        refreshTrackGeometry()
     }
 
     func setSelectedTrack(id: String) {
         selectedTrackId = RaceTrackCatalog.normalizedTrackId(id)
         refreshTrackGeometry()
+        if isPlacementMode, ghostAnchor != nil, placementPosition != nil {
+            removeGhost()
+            createGhostTrack()
+        }
     }
 
     func flushPendingState(session: ARSession) {
@@ -95,13 +105,11 @@ final class ARSceneController {
             } else {
                 planeDetectionStatus = .surfaceFound
             }
-            arView?.debugOptions.remove(.showFeaturePoints)
-            if isPlacementMode, ghostAnchor == nil {
+            if isPlacementMode, ghostAnchor == nil, placementAssetsReady {
                 tryInitialGhostPlacement()
             }
         } else if isPlacementMode {
             planeDetectionStatus = .scanning
-            arView?.debugOptions.insert(.showFeaturePoints)
         }
         notifyPlaneState()
     }
@@ -132,6 +140,7 @@ final class ARSceneController {
         guard arView != nil else { return }
         isPlacementMode = true
         trackConfirmed = false
+        placementAssetsReady = DeviceMemoryPolicy.isConstrained
         placementScale = 1.0
         placementYaw = 0
         placementPosition = nil
@@ -141,15 +150,19 @@ final class ARSceneController {
         removeTrack()
         removeGhost()
 
-        arView?.debugOptions.insert(.showFeaturePoints)
-        tryInitialGhostPlacement()
+        resumePlaneDetection()
+        Task { @MainActor in
+            await preloadTrackIfNeeded()
+            placementAssetsReady = true
+            tryInitialGhostPlacement()
+        }
     }
 
     func cancelPlacementPreview() {
         isPlacementMode = false
+        placementAssetsReady = false
         placementPosition = nil
         removeGhost()
-        arView?.debugOptions.remove(.showFeaturePoints)
         planeDetectionStatus = .scanning
         hasDetectedPlane = false
         notifyPlaneState()
@@ -188,20 +201,35 @@ final class ARSceneController {
         let worldTransform = ghost.transformMatrix(relativeTo: nil)
         let scale = placementScale
         let presetId = RaceTrackFactory.resolvedTrackId(for: selectedTrackId)
-        removeGhost()
         removeTrack()
 
-        let anchor = AnchorEntity(world: worldTransform)
-        let track = RaceTrackFactory.makeTrackEntity(for: presetId, scale: scale)
-        anchor.addChild(track)
-        arView?.scene.addAnchor(anchor)
-        trackAnchor = anchor
-        trackGeometry = RaceTrackFactory.geometry(for: presetId)
+        if ghostUsesFullTrackPreview, let track = ghostTrackEntity {
+            ghost.removeFromParent()
+            track.removeFromParent()
+            RaceTrackFactory.stripOpacity(from: track)
+            let anchor = AnchorEntity(world: worldTransform)
+            anchor.addChild(track)
+            arView?.scene.addAnchor(anchor)
+            trackAnchor = anchor
+            ghostAnchor = nil
+            ghostTrackEntity = nil
+            ghostUsesFullTrackPreview = false
+        } else {
+            removeGhost()
+            let anchor = AnchorEntity(world: worldTransform)
+            let track = RaceTrackFactory.makeTrackEntity(for: presetId, scale: scale)
+            anchor.addChild(track)
+            arView?.scene.addAnchor(anchor)
+            trackAnchor = anchor
+        }
+
+        trackGeometry = RaceTrackFactory.geometry(for: presetId, scale: scale)
+        trackScale = scale
 
         isPlacementMode = false
         trackConfirmed = true
         placementPosition = nil
-        arView?.debugOptions.remove(.showFeaturePoints)
+        stopPlaneDetectionForRacing()
 
         let pos = SIMD3<Float>(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
         let rot = simd_quatf(worldTransform)
@@ -223,11 +251,13 @@ final class ARSceneController {
         matrix.columns.3 = SIMD4(position.x, position.y, position.z, 1)
 
         let ghost = AnchorEntity(world: matrix)
-        let track = RaceTrackFactory.makeTrackEntity(for: selectedTrackId, scale: placementScale, opacity: 0.55)
+        ghostUsesFullTrackPreview = RaceTrackFactory.usesFullTrackPlacementGhost
+        let track = RaceTrackFactory.makePlacementGhost(for: selectedTrackId, scale: placementScale)
         ghost.addChild(track)
         arView.scene.addAnchor(ghost)
         ghostAnchor = ghost
         ghostTrackEntity = track
+        notifyPlaneState()
     }
 
     private func applyGhostTransform() {
@@ -255,9 +285,11 @@ final class ARSceneController {
         arView?.scene.addAnchor(anchor)
         trackAnchor = anchor
         selectedTrackId = RaceTrackCatalog.normalizedTrackId(trackId)
-        trackGeometry = RaceTrackFactory.geometry(for: trackId)
+        trackScale = scale
+        trackGeometry = RaceTrackFactory.geometry(for: trackId, scale: scale)
         trackConfirmed = true
         isPlacementMode = false
+        stopPlaneDetectionForRacing()
     }
 
     func applyWorldMap(_ worldMap: ARWorldMap, session: ARSession) {
@@ -270,17 +302,20 @@ final class ARSceneController {
         removeTrack()
         removeGhost()
         trackConfirmed = false
+        sessionCoordinator?.resetPlaneTracking()
 
-        let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal]
-        config.environmentTexturing = .automatic
-        config.initialWorldMap = worldMap
+        let config = ARSessionConfigFactory.makeWorldConfig(
+            planeDetection: true,
+            initialWorldMap: worldMap
+        )
         session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        startRelocalizationPolling(session: session)
     }
 
     func notifyRelocalizationReady() {
         guard awaitingRelocalization else { return }
         awaitingRelocalization = false
+        stopRelocalizationPolling()
         onRelocalizationReady?()
     }
 
@@ -409,7 +444,7 @@ final class ARSceneController {
         guard let trackAnchor else { return }
         var localPos = trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
         let yaw = BikeMovementModel.yaw(from: car.orientation(relativeTo: trackAnchor))
-        let forwardXZ = SIMD2(sin(yaw), -cos(yaw))
+        let forwardXZ = SIMD2(-sin(yaw), -cos(yaw))
         let halfWheelbase = trackGeometry.carSize.z / 2
 
         let frontSample = SIMD3(
@@ -440,12 +475,13 @@ final class ARSceneController {
 
     func teardown() {
         updateSubscription?.cancel()
+        stopRelocalizationPolling()
         removeAllCars()
         removeTrack()
         removeGhost()
         arView?.session.delegate = nil
-        arView?.debugOptions.remove(.showFeaturePoints)
         arView = nil
+        sessionCoordinator = nil
         planeDetectionStatus = .scanning
         hasDetectedPlane = false
         trackingQuality = .normal
@@ -516,19 +552,63 @@ final class ARSceneController {
     }
 
     private func refreshTrackGeometry() {
-        trackGeometry = RaceTrackFactory.geometry(for: selectedTrackId)
+        trackGeometry = RaceTrackFactory.geometry(for: selectedTrackId, scale: trackScale)
+    }
+
+    private func resumePlaneDetection() {
+        guard let session = arView?.session else { return }
+        let config = ARSessionConfigFactory.makeWorldConfig(planeDetection: true)
+        session.run(config)
+    }
+
+    private func stopPlaneDetectionForRacing() {
+        guard let session = arView?.session else { return }
+        let config = ARSessionConfigFactory.makeWorldConfig(planeDetection: false)
+        session.run(config)
+    }
+
+    private func startRelocalizationPolling(session: ARSession) {
+        stopRelocalizationPolling()
+        relocalizationTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.checkRelocalizationReady()
+            }
+        }
+    }
+
+    private func checkRelocalizationReady() {
+        guard awaitingRelocalization else {
+            stopRelocalizationPolling()
+            return
+        }
+        guard let frame = arView?.session.currentFrame else { return }
+        let mappingStatus = frame.worldMappingStatus
+        let trackingState = frame.camera.trackingState
+        if mappingStatus == .mapped, case .normal = trackingState {
+            notifyRelocalizationReady()
+        }
+    }
+
+    private func stopRelocalizationPolling() {
+        relocalizationTimer?.invalidate()
+        relocalizationTimer = nil
     }
 
     private func removeTrack() {
         trackAnchor?.removeFromParent()
         trackAnchor = nil
         trackConfirmed = false
+        trackScale = 1.0
     }
 
     private func removeGhost() {
         ghostAnchor?.removeFromParent()
         ghostAnchor = nil
         ghostTrackEntity = nil
+        ghostUsesFullTrackPreview = false
+        if isPlacementMode {
+            notifyPlaneState()
+        }
     }
 }
 

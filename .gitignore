@@ -7,6 +7,7 @@
 # Xcode
 build/
 DerivedData/
+.derivedData/
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -60,3 +61,7 @@ playground.xcworkspace
 .env
 .env.*
 *.pem
+
+# Python
+__pycache__/
+*.pyc

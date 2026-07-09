@@ -3,48 +3,67 @@
 //  bikebike
 //
 
+import Combine
 import SwiftUI
 
-struct VirtualJoystick: View {
+struct SteerArrowButtons: View {
     @Binding var steer: Float
 
-    private let size: CGFloat = 120
-    private let knobSize: CGFloat = 48
-    private let deadZone: Float = 0.08
+    private let steerRampRate: Float = 2.5
+    private let tickInterval: TimeInterval = 1.0 / 60.0
 
-    @State private var dragOffset: CGSize = .zero
+    @State private var leftPressed = false
+    @State private var rightPressed = false
+
+    private var steerTarget: Float {
+        if leftPressed, !rightPressed { return -1 }
+        if rightPressed, !leftPressed { return 1 }
+        return 0
+    }
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.black.opacity(0.45))
-                .frame(width: size, height: size)
-            Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                .frame(width: size - 6, height: size - 6)
-            Circle()
-                .fill(Color.white.opacity(0.9))
-                .frame(width: knobSize, height: knobSize)
-                .offset(dragOffset)
+        HStack(spacing: 12) {
+            steerButton(systemName: "chevron.left", active: leftPressed) {
+                leftPressed = true
+            } onRelease: {
+                leftPressed = false
+            }
+            steerButton(systemName: "chevron.right", active: rightPressed) {
+                rightPressed = true
+            } onRelease: {
+                rightPressed = false
+            }
         }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    let maxRadius = (size - knobSize) / 2
-                    let dx = value.translation.width
-                    let clampedX = max(-maxRadius, min(maxRadius, dx))
-                    dragOffset = CGSize(width: clampedX, height: 0)
-                    var nx = Float(clampedX / maxRadius)
-                    if abs(nx) < deadZone { nx = 0 }
-                    steer = max(-1, min(1, nx))
-                }
-                .onEnded { _ in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        dragOffset = .zero
-                    }
-                    steer = 0
-                }
-        )
+        .onReceive(Timer.publish(every: tickInterval, on: .main, in: .common).autoconnect()) { _ in
+            rampSteer(toward: steerTarget, deltaTime: Float(tickInterval))
+        }
+    }
+
+    private func rampSteer(toward target: Float, deltaTime: Float) {
+        if steer < target {
+            steer = min(target, steer + steerRampRate * deltaTime)
+        } else if steer > target {
+            steer = max(target, steer - steerRampRate * deltaTime)
+        }
+    }
+
+    private func steerButton(
+        systemName: String,
+        active: Bool,
+        onPress: @escaping () -> Void,
+        onRelease: @escaping () -> Void
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.title2.bold())
+            .frame(width: 64, height: 64)
+            .background(active ? Color.orange : Color.black.opacity(0.45))
+            .foregroundStyle(.white)
+            .clipShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in onPress() }
+                    .onEnded { _ in onRelease() }
+            )
     }
 }
 

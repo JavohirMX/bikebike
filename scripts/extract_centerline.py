@@ -137,11 +137,38 @@ def extract_curve_points(usda_text: str) -> list[tuple[float, float, float]]:
     return [lay_flat_for_ar(apply_xform(point, translate, rotate, scale)) for point in raw_points]
 
 
-def extract_mesh_bounds_points(usda_text: str) -> list[tuple[float, float, float]]:
-    mesh_blocks = re.finditer(r'def Mesh "[^"]+"\s*(?:\([^)]*\))?\s*\{', usda_text)
+def is_track_mesh_name(name: str) -> bool:
+    lowered = name.lower()
+    if lowered in {
+        "road",
+        "centerline",
+        "center_line",
+        "roadblock",
+        "road_block",
+        "startfinish",
+        "start_finish",
+        "finishline",
+        "finish_line",
+    }:
+        return True
+    return lowered.startswith("road_")
+
+
+def is_road_surface_mesh_name(name: str) -> bool:
+    lowered = name.lower()
+    return lowered == "road" or (lowered.startswith("road_") and "barrier" not in lowered)
+
+
+def extract_mesh_bounds_points(
+    usda_text: str,
+    *,
+    surface_only: bool = False,
+) -> list[tuple[float, float, float]]:
+    mesh_blocks = re.finditer(r'def Mesh "([^"]+)"\s*(?:\([^)]*\))?\s*\{', usda_text)
     all_points: list[tuple[float, float, float]] = []
 
     for mesh_match in mesh_blocks:
+        mesh_name = mesh_match.group(1)
         start = mesh_match.start()
         depth = 0
         end = start
@@ -169,6 +196,15 @@ def extract_mesh_bounds_points(usda_text: str) -> list[tuple[float, float, float
         parent_xform_start = usda_text.rfind('def Xform "', 0, start)
         parent_block_end = usda_text.find('\n    def Xform "', parent_xform_start + 1)
         parent_block = usda_text[parent_xform_start:parent_block_end if parent_block_end != -1 else start]
+        parent_name_match = re.search(r'def Xform "([^"]+)"', parent_block)
+        parent_name = parent_name_match.group(1) if parent_name_match else mesh_name
+        matches_surface = is_road_surface_mesh_name(parent_name) or is_road_surface_mesh_name(mesh_name)
+        matches_track = is_track_mesh_name(parent_name) or is_track_mesh_name(mesh_name)
+        if surface_only:
+            if not matches_surface:
+                continue
+        elif not matches_track:
+            continue
         translate, rotate, scale = extract_xform(parent_block)
 
         corners = [
@@ -239,7 +275,9 @@ def main() -> int:
 
     usda_text = load_usda_text(usdz_path)
     curve_points = extract_curve_points(usda_text)
-    mesh_points = extract_mesh_bounds_points(usda_text)
+    mesh_points = extract_mesh_bounds_points(usda_text, surface_only=True)
+    if not mesh_points:
+        mesh_points = extract_mesh_bounds_points(usda_text)
     normalized = normalize_track_root(curve_points, mesh_points)
     closed_points, is_closed = close_loop(normalized)
 
