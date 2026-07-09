@@ -16,7 +16,7 @@ struct BikeBikeNicknameField: View {
         TextField(
             "",
             text: $text,
-            prompt: Text(placeholder).foregroundStyle(.white.opacity(0.7))
+            prompt: Text(placeholder).foregroundStyle(Color(white: 0.35))
         )
         .font(BikeBikeTheme.bodyFont(size: 20))
         .foregroundStyle(.black)
