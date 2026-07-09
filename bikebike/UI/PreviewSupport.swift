@@ -64,9 +64,9 @@ enum PreviewData {
 
     static var carStates: [CarState] {
         [
-            CarState(playerId: "host-1", transform: transform(), speed: 3.2, currentLap: 2,
+            CarState(playerId: "host-1", transform: transform(), speed: 3.2, currentLap: 2, trackProgress: 0.72,
                      lastLapTime: 11.8, fastestLapTime: 11.8, totalTime: 42.3, finished: false, finishTime: nil, status: .racing),
-            CarState(playerId: "guest-1", transform: transform(), speed: 2.7, currentLap: 1,
+            CarState(playerId: "guest-1", transform: transform(), speed: 2.7, currentLap: 1, trackProgress: 0.41,
                      lastLapTime: 13.4, fastestLapTime: 13.4, totalTime: 40.1, finished: false, finishTime: nil, status: .racing)
         ]
     }

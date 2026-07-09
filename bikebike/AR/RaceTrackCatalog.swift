@@ -47,6 +47,11 @@ struct TrackSurfaceFrame {
     var arcLength: Float
 }
 
+struct ScoreboardPlacementFrame {
+    var position: SIMD3<Float>
+    var outward: SIMD3<Float>
+}
+
 protocol RaceTrackGeometry {
     var presetId: String { get }
     var displayName: String { get }
@@ -75,6 +80,46 @@ extension RaceTrackGeometry {
 
     func surfaceFrame(at localPos: SIMD3<Float>) -> TrackSurfaceFrame {
         surfaceFrame(at: localPos, hintArcLength: nil)
+    }
+
+    func scoreboardPlacementFrame(panelWidth: Float, scale: Float) -> ScoreboardPlacementFrame {
+        let finishCenter = finishLineCenterPosition()
+        let frame = surfaceFrame(at: finishCenter, hintArcLength: finishArcLength)
+
+        // Float centered above the start/finish straight like a hovering screen.
+        let floatHeight = 0.6 * scale
+        let surfaceY = frame.position.y
+        let position = SIMD3<Float>(
+            frame.position.x,
+            surfaceY + floatHeight,
+            frame.position.z
+        )
+
+        guard position.allFinite else {
+            let spawn = spawnTransform(gridIndex: 0)
+            let spawnFrame = surfaceFrame(at: spawn.position, hintArcLength: finishArcLength)
+            let fallback = SIMD3<Float>(
+                spawnFrame.position.x,
+                spawnFrame.position.y + floatHeight,
+                spawnFrame.position.z
+            )
+            return ScoreboardPlacementFrame(position: fallback, outward: .zero)
+        }
+
+        return ScoreboardPlacementFrame(position: position, outward: .zero)
+    }
+
+    private func finishLineCenterPosition() -> SIMD3<Float> {
+        let spawn = spawnTransform(gridIndex: 0)
+        let clamped = clampToCorridor(spawn.position)
+        let y = surfaceHeight(at: spawn.position, hintArcLength: finishArcLength)
+        return SIMD3<Float>(clamped.position.x, y, clamped.position.y)
+    }
+}
+
+private extension SIMD3 where Scalar == Float {
+    var allFinite: Bool {
+        x.isFinite && y.isFinite && z.isFinite
     }
 }
 

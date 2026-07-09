@@ -88,6 +88,9 @@ final class AppState: RaceSessionDelegate {
     private static let playerNicknameKey = "bikebike.playerNickname"
     private var pendingRaceStart = false
     private var lastRemotePoseTimestamp: [String: TimeInterval] = [:]
+    private var lastARLeaderboardSync = Date.distantPast
+    private var lastARLeaderboardSnapshot: [LeaderboardEntry] = []
+    private var lastARTrackProgressSnapshot: [String: Float] = [:]
 
     var lobbyReady: Bool { players.count >= 2 }
 
@@ -129,7 +132,6 @@ final class AppState: RaceSessionDelegate {
 
     func exitRace() {
         stopTimers()
-        setRaceIdleTimerDisabled(false)
         AudioManager.shared.stopRaceAudio()
         steerInput = 0
         gasPressed = false
@@ -139,6 +141,8 @@ final class AppState: RaceSessionDelegate {
         countdownLabel = nil
         lastCountdownTickSecond = nil
         arController.removeAllCars()
+        arController.hideLeaderboardScoreboard()
+        resetARLeaderboardSyncState()
         carStates = []
         leaderboard = []
         raceStartTime = nil
@@ -156,7 +160,6 @@ final class AppState: RaceSessionDelegate {
 
     func goHome() {
         stopTimers()
-        setRaceIdleTimerDisabled(false)
         AudioManager.shared.stopRaceAudio()
         raceSession.stopAll()
         arController.teardown()
@@ -413,7 +416,6 @@ final class AppState: RaceSessionDelegate {
 
     func playAgain() {
         stopTimers()
-        setRaceIdleTimerDisabled(false)
         AudioManager.shared.stopRaceAudio()
         steerInput = 0
         gasPressed = false
@@ -423,6 +425,8 @@ final class AppState: RaceSessionDelegate {
         countdownLabel = nil
         lastCountdownTickSecond = nil
         arController.removeAllCars()
+        arController.hideLeaderboardScoreboard()
+        resetARLeaderboardSyncState()
         carStates = []
         leaderboard = []
         raceStartTime = nil
@@ -611,8 +615,17 @@ final class AppState: RaceSessionDelegate {
         lastRemotePoseTimestamp = [:]
         boostState = BoostState()
         boostRequested = false
-        setRaceIdleTimerDisabled(true)
         await spawnAllCars()
+
+        if role != .solo {
+            resetARLeaderboardSyncState()
+            refreshLeaderboard()
+            arController.showLeaderboardScoreboard(
+                entries: leaderboard,
+                localPlayerId: raceSession.localPlayerId,
+                lapCount: raceConfig.lapCount
+            )
+        }
         
         if role == .guest {
             let payload = PlayerReadyPayload(playerId: raceSession.localPlayerId)
@@ -658,6 +671,16 @@ final class AppState: RaceSessionDelegate {
         lastCountdownTickSecond = nil
         stopCountdownTimer()
         startTimers()
+        if role != .solo {
+            resetARLeaderboardSyncState()
+            if !arController.isLeaderboardAttached {
+                arController.showLeaderboardScoreboard(
+                    entries: leaderboard,
+                    localPlayerId: raceSession.localPlayerId,
+                    lapCount: raceConfig.lapCount
+                )
+            }
+        }
         refreshLeaderboard()
     }
 
@@ -696,6 +719,12 @@ final class AppState: RaceSessionDelegate {
         )
     }
 
+    func tickCountdownARUpdates() {
+        guard role != .solo, phase == .countdown else { return }
+        arController.updateLeaderboardOrientation()
+        syncLeaderboardToARIfNeeded()
+    }
+
     func applyInputTick(deltaTime: Float) {
         guard phase == .racing else { return }
         tickBoost(deltaTime: deltaTime)
@@ -715,6 +744,12 @@ final class AppState: RaceSessionDelegate {
 
         arController.tickRemoteCars(deltaTime: deltaTime, now: Date().timeIntervalSince1970)
         updateLocalCarState()
+        if role != .solo, phase == .racing {
+            arController.updateLeaderboardOrientation()
+        }
+        if role != .solo, phase == .racing {
+            syncRacingLeaderboard()
+        }
     }
 
     private func tickBoost(deltaTime: Float) {
@@ -893,7 +928,6 @@ final class AppState: RaceSessionDelegate {
             guard let payload = try? envelope.decode(RaceEndPayload.self) else { return }
             leaderboard = payload.leaderboard
             stopTimers()
-            setRaceIdleTimerDisabled(false)
             AudioManager.shared.stopRaceAudio()
             phase = .results
 
@@ -1093,6 +1127,7 @@ final class AppState: RaceSessionDelegate {
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
                 speed: 0,
                 currentLap: 0,
+                trackProgress: 0,
                 lastLapTime: nil,
                 fastestLapTime: nil,
                 totalTime: 0,
@@ -1115,7 +1150,6 @@ final class AppState: RaceSessionDelegate {
         countdownLabel = nil
         raceBeginTimestamp = nil
         lastCountdownTickSecond = nil
-        setRaceIdleTimerDisabled(true)
         await spawnAllCars()
         startTimers()
         refreshLeaderboard()
@@ -1317,6 +1351,7 @@ final class AppState: RaceSessionDelegate {
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
                 speed: 0,
                 currentLap: 0,
+                trackProgress: 0,
                 lastLapTime: nil,
                 totalTime: 0,
                 finished: false,
@@ -1432,8 +1467,9 @@ final class AppState: RaceSessionDelegate {
 
     private func endRace() {
         refreshLeaderboard()
+        arController.hideLeaderboardScoreboard()
+        resetARLeaderboardSyncState()
         stopTimers()
-        setRaceIdleTimerDisabled(false)
         AudioManager.shared.stopRaceAudio()
         dnfTimerTask?.cancel()
         dnfTimerTask = nil
@@ -1463,7 +1499,60 @@ final class AppState: RaceSessionDelegate {
     }
 
     private func refreshLeaderboard() {
+        if phase == .racing {
+            for index in carStates.indices {
+                carStates[index].trackProgress = arController.trackProgress(for: carStates[index].playerId)
+            }
+        }
         leaderboard = LeaderboardSorter.sort(players: players, cars: carStates)
+        syncLeaderboardToARIfNeeded()
+    }
+
+    private func syncRacingLeaderboard() {
+        for index in carStates.indices {
+            carStates[index].trackProgress = arController.trackProgress(for: carStates[index].playerId)
+        }
+        leaderboard = LeaderboardSorter.sort(players: players, cars: carStates)
+        syncLeaderboardToARIfNeeded()
+    }
+
+    private func syncLeaderboardToARIfNeeded() {
+        guard role != .solo, phase == .racing || phase == .countdown else { return }
+        guard shouldRefreshARLeaderboard() else { return }
+
+        arController.updateLeaderboardScoreboard(
+            entries: leaderboard,
+            localPlayerId: raceSession.localPlayerId,
+            lapCount: raceConfig.lapCount
+        )
+        lastARLeaderboardSync = Date()
+        lastARLeaderboardSnapshot = leaderboard
+        lastARTrackProgressSnapshot = Dictionary(
+            uniqueKeysWithValues: carStates.map { ($0.playerId, $0.trackProgress) }
+        )
+    }
+
+    private func shouldRefreshARLeaderboard() -> Bool {
+        let now = Date()
+        if now.timeIntervalSince(lastARLeaderboardSync) >= 0.2 {
+            return true
+        }
+        if leaderboard != lastARLeaderboardSnapshot {
+            return true
+        }
+        for car in carStates {
+            let previous = lastARTrackProgressSnapshot[car.playerId] ?? 0
+            if abs(car.trackProgress - previous) >= 0.02 {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func resetARLeaderboardSyncState() {
+        lastARLeaderboardSync = .distantPast
+        lastARLeaderboardSnapshot = []
+        lastARTrackProgressSnapshot = [:]
     }
 
     private func startTimers() {
@@ -1538,8 +1627,22 @@ final class AppState: RaceSessionDelegate {
         countdownTimer = nil
     }
 
-    private func setRaceIdleTimerDisabled(_ disabled: Bool) {
-        UIApplication.shared.isIdleTimerDisabled = disabled
+    func syncIdleTimerDisabled() {
+        UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake
+    }
+
+    private var shouldKeepScreenAwake: Bool {
+        switch role {
+        case .host, .guest:
+            return true
+        case .solo:
+            switch phase {
+            case .placement, .countdown, .racing:
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     private func updateElapsedTime() {

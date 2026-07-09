@@ -46,7 +46,7 @@ struct BoostState: Equatable {
 
     static let activeDuration: TimeInterval = 3.0
     static let cooldownDuration: TimeInterval = 10.0
-    static let speedMultiplier: Float = 1.5
+    static let speedMultiplier: Float = 1.8
 
     var isReady: Bool { !isActive && cooldownRemaining <= 0 }
 
@@ -210,6 +210,7 @@ struct CarState: Codable, Identifiable, Equatable {
     var transform: TransformPacket
     var speed: Float
     var currentLap: Int
+    var trackProgress: Float
     var lastLapTime: TimeInterval?
     var fastestLapTime: TimeInterval?
     var totalTime: TimeInterval
@@ -258,6 +259,7 @@ enum LeaderboardSorter {
                 return (a.finishTime ?? .infinity) < (b.finishTime ?? .infinity)
             }
             if a.currentLap != b.currentLap { return a.currentLap > b.currentLap }
+            if a.trackProgress != b.trackProgress { return a.trackProgress > b.trackProgress }
             return a.totalTime < b.totalTime
         }
         return sorted.enumerated().map { index, car in

@@ -67,6 +67,7 @@ final class ARSceneController {
     private var placementPosition: SIMD3<Float>?
     private var ghostUsesFullTrackPreview = false
     private var placementAssetsReady = false
+    private let leaderboardScoreboard = ARLeaderboardScoreboard()
 
     func attach(to arView: ARView, sessionDelegate: ARSessionDelegate) {
         self.arView = arView
@@ -484,6 +485,7 @@ final class ARSceneController {
         let start = localPlayerIndicatorBobStart ?? Date().timeIntervalSince1970
         let elapsed = Date().timeIntervalSince1970 - start
         indicator.position.y = LocalPlayerIndicator.heightAboveCar + LocalPlayerIndicator.bobOffset(time: elapsed)
+    }
 
     func setBoostActive(playerId: String, active: Bool) {
         guard let car = cars[playerId] else { return }
@@ -512,6 +514,76 @@ final class ARSceneController {
 
     func carSpeed(playerId: String) -> Float {
         carSpeeds[playerId] ?? 0
+    }
+
+    func trackProgress(for playerId: String) -> Float {
+        guard trackGeometry.perimeterLength > 0.001 else { return 0 }
+        if let car = cars[playerId] {
+            let local = localCarPosition(car)
+            let hint = lastMeasuredArc[playerId]
+            let arc = trackGeometry.arcLength(for: local, hintArcLength: hint)
+            return min(1, max(0, arc / trackGeometry.perimeterLength))
+        }
+        if let arc = lastMeasuredArc[playerId] {
+            return min(1, max(0, arc / trackGeometry.perimeterLength))
+        }
+        return 0
+    }
+
+    var isLeaderboardAttached: Bool { leaderboardScoreboard.isAttached }
+
+    func showLeaderboardScoreboard(
+        entries: [LeaderboardEntry],
+        localPlayerId: String,
+        lapCount: Int
+    ) {
+        guard let trackAnchor else {
+            return
+        }
+        leaderboardScoreboard.attach(
+            to: trackAnchor,
+            geometry: trackGeometry,
+            scale: trackScale,
+            entries: entries,
+            localPlayerId: localPlayerId,
+            lapCount: lapCount
+        )
+        updateLeaderboardOrientation()
+    }
+
+    func updateLeaderboardOrientation() {
+        guard leaderboardScoreboard.isAttached,
+              let frame = arView?.session.currentFrame else { return }
+        let cameraPosition = SIMD3<Float>(
+            frame.camera.transform.columns.3.x,
+            frame.camera.transform.columns.3.y,
+            frame.camera.transform.columns.3.z
+        )
+        leaderboardScoreboard.faceCamera(cameraPosition)
+    }
+
+    func updateLeaderboardScoreboard(
+        entries: [LeaderboardEntry],
+        localPlayerId: String,
+        lapCount: Int
+    ) {
+        if !leaderboardScoreboard.isAttached, trackAnchor != nil {
+            showLeaderboardScoreboard(
+                entries: entries,
+                localPlayerId: localPlayerId,
+                lapCount: lapCount
+            )
+            return
+        }
+        leaderboardScoreboard.update(
+            entries: entries,
+            localPlayerId: localPlayerId,
+            lapCount: lapCount
+        )
+    }
+
+    func hideLeaderboardScoreboard() {
+        leaderboardScoreboard.hide()
     }
 
     func setRemoteCarTarget(playerId: String, transform: TransformPacket, speed: Float, boostActive: Bool = false) {
@@ -582,6 +654,7 @@ final class ARSceneController {
 
         car.setPosition(trackAnchor.convert(position: localPos, to: nil), relativeTo: nil)
         car.orientation = orientation
+        updateArcMeasurement(playerId: playerId, localPos: localPos)
     }
 
     func updateRemoteCar(playerId: String, transform: TransformPacket) {
@@ -667,6 +740,17 @@ final class ARSceneController {
         return trackAnchor.convert(position: car.position(relativeTo: nil), from: nil)
     }
 
+    private func updateArcMeasurement(playerId: String, localPos: SIMD3<Float>) {
+        let hint = lastMeasuredArc[playerId]
+        let measured = trackGeometry.arcLength(for: localPos, hintArcLength: hint)
+        if let last = lastMeasuredArc[playerId] {
+            let delta = trackGeometry.forwardArcDelta(from: last, to: measured)
+            let maxStep = trackGeometry.perimeterLength * 0.45
+            guard delta <= maxStep else { return }
+        }
+        lastMeasuredArc[playerId] = measured
+    }
+
     private var minLapDistance: Float {
         trackGeometry.perimeterLength * 0.75
     }
@@ -719,6 +803,7 @@ final class ARSceneController {
     }
 
     private func removeTrack() {
+        hideLeaderboardScoreboard()
         trackAnchor?.removeFromParent()
         trackAnchor = nil
         trackConfirmed = false

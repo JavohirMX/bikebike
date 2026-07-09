@@ -62,8 +62,14 @@ struct ARRaceView: View {
             }
         }
         .onReceive(gameTimer) { _ in
-            guard appState.phase == .racing else { return }
-            appState.applyInputTick(deltaTime: 1.0 / 60.0)
+            switch appState.phase {
+            case .racing:
+                appState.applyInputTick(deltaTime: 1.0 / 60.0)
+            case .countdown:
+                appState.tickCountdownARUpdates()
+            default:
+                break
+            }
         }
     }
 }

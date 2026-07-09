@@ -59,9 +59,14 @@ struct RootView: View {
         }
         .onAppear {
             AudioManager.shared.syncBackgroundMusic(for: appState.phase)
+            appState.syncIdleTimerDisabled()
         }
         .onChange(of: appState.phase) { _, phase in
             AudioManager.shared.syncBackgroundMusic(for: phase)
+            appState.syncIdleTimerDisabled()
+        }
+        .onChange(of: appState.role) { _, _ in
+            appState.syncIdleTimerDisabled()
         }
         .onReceive(NotificationCenter.default.publisher(for: .audioPreferencesChanged)) { _ in
             AudioManager.shared.syncBackgroundMusic(for: appState.phase)

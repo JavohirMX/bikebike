@@ -37,8 +37,8 @@ enum BikeMovementModel {
     static let brakeForce: Float = 4.5
     static let rollingDrag: Float = 1.2
     static let wallSlideFriction: Float = 0.75
-    static let boostThrustMultiplier: Float = 2.5
-    static let boostSustainThrust: Float = 1.8
+    static let boostThrustMultiplier: Float = 3.0
+    static let boostSustainThrust: Float = 2.16
 
     static var boostedMaxSpeed: Float { maxSpeed * BoostState.speedMultiplier }
 
