@@ -13,6 +13,7 @@ enum AppPhase: Equatable {
     case soloDriverSelect
     case soloLapSelect
     case multiplayerRolePicker
+    case multiplayerNickname
     case permissionPrimer
     case multiplayerLapSelect
     case hostSetup

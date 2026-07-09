@@ -19,6 +19,10 @@ enum PreviewData {
         return state
     }
 
+    static func appStateForNickname(role: PlayerRole) -> AppState {
+        appState { $0.selectMultiplayerRole(role) }
+    }
+
     static var host: PlayerProfile {
         .local(peerId: "host-1", name: "Talin", isHost: true, driverId: "talin")
     }
