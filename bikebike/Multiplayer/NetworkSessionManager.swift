@@ -33,6 +33,8 @@ final class NetworkSessionManager {
     private var announcedSessionIds = Set<String>()
     private var connectedPeerIdSet = Set<String>()
     private var activeConnectSessionId: String?
+    private var maxGuestConnections = MultiplayerConstants.maxGuestConnections
+    private var bonjourTXT: NWTXTRecord?
 
     private let localPeerId: String
     private var deviceDisplayName: String
@@ -68,6 +70,7 @@ final class NetworkSessionManager {
     func startHosting(sessionInfo: SessionInfo) {
         stopAll()
         isHost = true
+        maxGuestConnections = sessionInfo.maxPlayers - 1
 
         let parameters = tcpParameters()
         do {
@@ -77,6 +80,9 @@ final class NetworkSessionManager {
             txt["laps"] = "\(sessionInfo.lapCount)"
             txt["track"] = sessionInfo.trackId
             txt["peerId"] = sessionInfo.peerID
+            txt["maxPlayers"] = "\(sessionInfo.maxPlayers)"
+            txt["players"] = "\(sessionInfo.playerCount)"
+            bonjourTXT = txt
             listener.service = NWListener.Service(name: nil, type: Self.bonjourType, domain: nil, txtRecord: txt)
 
             listener.stateUpdateHandler = { [weak self] state in
@@ -164,6 +170,21 @@ final class NetworkSessionManager {
         connectedPeerIdSet.removeAll()
         activeConnectSessionId = nil
         isHost = false
+        maxGuestConnections = MultiplayerConstants.maxGuestConnections
+        bonjourTXT = nil
+    }
+
+    func updateAdvertisedPlayerCount(_ count: Int) {
+        guard isHost, let listener, var txt = bonjourTXT else { return }
+        txt["players"] = "\(count)"
+        bonjourTXT = txt
+        listener.service = NWListener.Service(name: nil, type: Self.bonjourType, domain: nil, txtRecord: txt)
+    }
+
+    func send(_ envelope: RaceEnvelope, reliable: Bool, to peerId: String) {
+        guard let data = try? LengthPrefixedMessageCodec.encode(envelope) else { return }
+        guard let connection = connections.values.first(where: { $0.peerId == peerId && $0.isReady }) else { return }
+        sendData(data, on: connection.nwConnection, coalesce: !reliable)
     }
 
     func send(_ envelope: RaceEnvelope, reliable: Bool, excluding excludedPeerId: String? = nil) {
@@ -219,7 +240,7 @@ final class NetworkSessionManager {
 
     private func attachConnection(_ connection: NWConnection, peerId: String, announceConnect: Bool) {
         if isHost {
-            if connections.count >= 1 {
+            if connections.count >= maxGuestConnections {
                 connection.cancel()
                 return
             }
@@ -379,8 +400,8 @@ final class NetworkSessionManager {
                 hostName: hostName,
                 trackId: txt["track"] ?? RaceTrackCatalog.defaultTrackId,
                 lapCount: Int(txt["laps"] ?? "3") ?? 3,
-                playerCount: 1,
-                maxPlayers: 2,
+                playerCount: Int(txt["players"] ?? "1") ?? 1,
+                maxPlayers: Int(txt["maxPlayers"] ?? "") ?? MultiplayerConstants.maxPlayers,
                 phase: .lobby,
                 peerID: txt["peerId"] ?? hostName
             )

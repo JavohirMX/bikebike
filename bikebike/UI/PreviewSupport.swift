@@ -41,7 +41,7 @@ enum PreviewData {
                 trackId: RaceTrackCatalog.defaultTrackId,
                 lapCount: 3,
                 playerCount: 1,
-                maxPlayers: 2,
+                maxPlayers: MultiplayerConstants.maxPlayers,
                 phase: .lobby,
                 peerID: "host-1"
             ),
@@ -51,7 +51,7 @@ enum PreviewData {
                 trackId: RaceTrackCatalog.defaultTrackId,
                 lapCount: 5,
                 playerCount: 2,
-                maxPlayers: 2,
+                maxPlayers: MultiplayerConstants.maxPlayers,
                 phase: .lobby,
                 peerID: "host-2"
             )

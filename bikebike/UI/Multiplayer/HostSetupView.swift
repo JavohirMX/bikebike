@@ -85,7 +85,7 @@ struct HostSetupView: View {
 
                 ReceiptDashedDivider()
 
-                Text("Players")
+                Text("Players (\(appState.players.count)/\(MultiplayerConstants.maxPlayers))")
                     .font(BikeBikeTheme.bodyFont(size: 16))
                     .foregroundStyle(BikeBikeTheme.darkBlue)
 

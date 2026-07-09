@@ -138,7 +138,7 @@ private struct LobbyShell: View {
                     .padding(.horizontal)
             }
 
-            Text("Players")
+            Text("Players (\(appState.players.count)/\(MultiplayerConstants.maxPlayers))")
                 .font(.subheadline.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)

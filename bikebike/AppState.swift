@@ -444,7 +444,7 @@ final class AppState: RaceSessionDelegate {
             trackId: raceConfig.trackId,
             lapCount: raceConfig.lapCount,
             playerCount: 1,
-            maxPlayers: 2,
+            maxPlayers: MultiplayerConstants.maxPlayers,
             phase: .lobby,
             peerID: raceSession.localPlayerId
         )
@@ -715,6 +715,9 @@ final class AppState: RaceSessionDelegate {
         players.removeAll { $0.peerId == peerId }
         carStates.removeAll { $0.playerId == peerId }
         arController.removeCar(playerId: peerId)
+        if role == .host {
+            raceSession.updateAdvertisedPlayerCount(players.count)
+        }
         if role == .guest && phase == .racing {
             goHome()
         }
@@ -726,6 +729,11 @@ final class AppState: RaceSessionDelegate {
         case .joinRequest:
             guard role == .host, let payload = try? envelope.decode(JoinRequestPayload.self) else { return }
             var player = payload.player
+            let isRejoin = players.contains(where: { $0.peerId == player.peerId })
+            if !isRejoin && players.count >= MultiplayerConstants.maxPlayers {
+                sendJoinReject(to: player.peerId, reason: "Room is full (\(MultiplayerConstants.maxPlayers)/\(MultiplayerConstants.maxPlayers))")
+                return
+            }
             let taken = DriverCatalog.takenDriverIds(by: players, excluding: player.peerId)
             if taken.contains(player.driverId) {
                 let replacementId = DriverCatalog.firstAvailableDriverId(excluding: taken)
@@ -742,6 +750,11 @@ final class AppState: RaceSessionDelegate {
             arController.setSelectedTrack(id: raceConfig.trackId)
             cancelLobbySync()
             lobbySyncErrorMessage = nil
+
+        case .joinReject:
+            guard role == .guest, let payload = try? envelope.decode(JoinRejectPayload.self) else { return }
+            lobbySyncErrorMessage = payload.reason
+            cancelLobbySync()
 
         case .trackPlaced:
             guard let payload = try? envelope.decode(TrackPlacedPayload.self) else { return }
@@ -804,6 +817,9 @@ final class AppState: RaceSessionDelegate {
             guard let payload = try? envelope.decode(PlayerLeftPayload.self) else { return }
             players.removeAll { $0.peerId == payload.playerId }
             carStates.removeAll { $0.playerId == payload.playerId }
+            if role == .host {
+                raceSession.updateAdvertisedPlayerCount(players.count)
+            }
 
         case .playerProfile:
             guard let payload = try? envelope.decode(PlayerProfilePayload.self) else { return }
@@ -929,7 +945,10 @@ final class AppState: RaceSessionDelegate {
             updated.append(profile)
         }
         players = updated
-        if role == .host { syncPlayerColors() }
+        if role == .host {
+            syncPlayerColors()
+            raceSession.updateAdvertisedPlayerCount(players.count)
+        }
     }
 
     private func registerGuestPeer(_ peerId: String) {
@@ -959,6 +978,14 @@ final class AppState: RaceSessionDelegate {
             raceSession.send(reply, reliable: true)
         }
         if trackPlaced { resendTrack() }
+    }
+
+    private func sendJoinReject(to peerId: String, reason: String) {
+        guard role == .host else { return }
+        let payload = JoinRejectPayload(reason: reason)
+        if let envelope = try? raceSession.encode(type: .joinReject, payload: payload) {
+            raceSession.send(envelope, reliable: true, to: peerId)
+        }
     }
 
     private func spawnAllCars() async {

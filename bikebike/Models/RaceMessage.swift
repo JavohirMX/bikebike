@@ -8,6 +8,7 @@ import Foundation
 enum RaceMessageType: String, Codable {
     case joinRequest
     case joinAccept
+    case joinReject
     case trackPlaced
     case raceStart
     case carPose
@@ -54,6 +55,10 @@ struct JoinAcceptPayload: Codable {
     let player: PlayerProfile
     let allPlayers: [PlayerProfile]
     let config: RaceConfig
+}
+
+struct JoinRejectPayload: Codable {
+    let reason: String
 }
 
 struct PlayerProfilePayload: Codable {

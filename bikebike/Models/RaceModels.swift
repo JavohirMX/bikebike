@@ -217,6 +217,11 @@ struct LeaderboardEntry: Codable, Identifiable, Equatable {
     let status: PlayerStatus
 }
 
+enum MultiplayerConstants {
+    static let maxPlayers = 6
+    static var maxGuestConnections: Int { maxPlayers - 1 }
+}
+
 struct SessionInfo: Codable, Identifiable, Equatable {
     let sessionId: String
     let hostName: String
