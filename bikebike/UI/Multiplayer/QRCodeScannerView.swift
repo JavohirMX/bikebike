@@ -22,6 +22,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     var onScan: ((String) -> Void)?
     private var captureSession: AVCaptureSession?
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var metadataOutput: AVCaptureMetadataOutput?
     private var didScan = false
 
     override func viewDidLoad() {
@@ -33,6 +34,15 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.layer.bounds
+        updateOrientation()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        guard let session = captureSession, !session.isRunning else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            session.startRunning()
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -42,7 +52,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
     private func setupCamera() {
         let session = AVCaptureSession()
-        guard let device = AVCaptureDevice.default(for: .video),
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else { return }
 
@@ -61,10 +71,39 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
         captureSession = session
         previewLayer = preview
+        metadataOutput = output
+    }
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            session.startRunning()
+    private func updateOrientation() {
+        let orientation = view.window?.windowScene?.interfaceOrientation ?? .landscapeRight
+        let angle = rotationAngle(for: orientation)
+
+        if let connection = previewLayer?.connection {
+            applyRotation(angle, to: connection)
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = false
+            }
         }
+
+        if let connection = metadataOutput?.connection(with: .video) {
+            applyRotation(angle, to: connection)
+        }
+    }
+
+    private func rotationAngle(for orientation: UIInterfaceOrientation) -> CGFloat {
+        switch orientation {
+        case .landscapeRight: return 0
+        case .portrait: return 90
+        case .landscapeLeft: return 180
+        case .portraitUpsideDown: return 270
+        default: return 0
+        }
+    }
+
+    private func applyRotation(_ angle: CGFloat, to connection: AVCaptureConnection) {
+        guard connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 
     func metadataOutput(
