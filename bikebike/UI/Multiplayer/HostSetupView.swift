@@ -48,7 +48,7 @@ struct HostSetupView: View {
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .overlay(alignment: .topLeading) {
-            BikeBikeBackButton { appState.goHome() }
+            BikeBikeBackButton { appState.backFromHostSetup() }
                 .padding(.leading, 32)
                 .padding(.top, 24)
                 .ignoresSafeArea()
@@ -101,7 +101,9 @@ struct HostSetupView: View {
 
     private var instructionsColumn: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HeadingBanner(title: "Multiplayer")
+            MultiplayerBanner(title: "Multiplayer")
+                .frame(maxWidth: 380, alignment: .center)
+                .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 24)
 

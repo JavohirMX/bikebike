@@ -26,7 +26,7 @@ struct HomeView: View {
                     BikeBikeLogo(height: 100)
                     VStack(spacing: 14) {
                         BikeBikePillButton(
-                            title: "Soloplayer",
+                            title: "Singleplayer",
                             systemImage: "person.fill",
                             style: .yellow,
                             isEnabled: !buttonsDisabled

@@ -23,6 +23,8 @@ struct RootView: View {
                 MultiplayerRolePickerView()
             case .permissionPrimer:
                 PermissionPrimerView()
+            case .multiplayerLapSelect:
+                MultiplayerLapSelectView()
             case .hostSetup:
                 HostSetupView()
             case .guestSetup:

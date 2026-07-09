@@ -17,13 +17,6 @@ struct MultiplayerRolePickerView: View {
                 .padding(.horizontal, 24)
 
             VStack {
-                HStack {
-                    BikeBikeBackButton { appState.goHome() }
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-
                 Spacer()
 
                 VStack(spacing: 20) {
@@ -46,6 +39,12 @@ struct MultiplayerRolePickerView: View {
 
                 Spacer()
             }
+        }
+        .overlay(alignment: .topLeading) {
+            BikeBikeBackButton { appState.goHome() }
+                .padding(.leading, 32)
+                .padding(.top, 24)
+                .ignoresSafeArea()
         }
         .onAppear {
             if appState.homeDeparture == nil {
