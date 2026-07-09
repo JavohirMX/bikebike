@@ -422,9 +422,9 @@ final class AppState: RaceSessionDelegate {
         case .solo:
             phase = .soloLapSelect
         case .host:
-            phase = .hostLobby
+            phase = .multiplayerLapSelect
         case .guest:
-            phase = .guestSetup
+            phase = .guestLobby
         }
     }
 
@@ -812,6 +812,11 @@ final class AppState: RaceSessionDelegate {
         case .lapCompleted:
             guard let payload = try? envelope.decode(LapCompletedPayload.self) else { return }
             applyLapUpdate(payload)
+            if role == .host {
+                if let env = try? raceSession.encode(type: .lapCompleted, payload: payload) {
+                    raceSession.send(env, reliable: true, excluding: peerId)
+                }
+            }
 
         case .raceEnd:
             guard let payload = try? envelope.decode(RaceEndPayload.self) else { return }
@@ -1248,20 +1253,7 @@ final class AppState: RaceSessionDelegate {
         guard phase == .racing else { return }
         let now = Date()
 
-        if role == .host || role == .solo {
-            recordLap(for: playerId)
-        } else {
-            guard let car = carStates.first(where: { $0.playerId == playerId }) else { return }
-            let payload = LapCompletedPayload(
-                playerId: playerId,
-                lapNumber: car.currentLap + 1,
-                lapTime: now.timeIntervalSince(lastLapCrossTime[playerId] ?? raceStartTime ?? now),
-                totalTime: now.timeIntervalSince(raceStartTime ?? now)
-            )
-            if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
-                raceSession.sendToHost(envelope, reliable: true)
-            }
-        }
+        recordLap(for: playerId)
     }
 
     private func recordLap(for playerId: String) {
@@ -1285,6 +1277,10 @@ final class AppState: RaceSessionDelegate {
         if role == .host {
             if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
                 raceSession.send(envelope, reliable: true)
+            }
+        } else if role == .guest {
+            if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
+                raceSession.sendToHost(envelope, reliable: true)
             }
         }
 
