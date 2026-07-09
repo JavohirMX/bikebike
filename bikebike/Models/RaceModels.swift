@@ -13,6 +13,7 @@ enum AppPhase: Equatable {
     case soloLapSelect
     case multiplayerRolePicker
     case permissionPrimer
+    case multiplayerLapSelect
     case hostSetup
     case guestSetup
     case browseSessions

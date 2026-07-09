@@ -1,11 +1,11 @@
 //
-//  SoloLapSelectView.swift
+//  MultiplayerLapSelectView.swift
 //  bikebike
 //
 
 import SwiftUI
 
-struct SoloLapSelectView: View {
+struct MultiplayerLapSelectView: View {
     @Environment(AppState.self) private var appState
     @State private var controlsOpacity: CGFloat = 0
 
@@ -13,20 +13,20 @@ struct SoloLapSelectView: View {
         ZStack {
             BikeBikeBackground()
 
-            HomeBikeScene(mode: .parked)
+            HomeBikeScene(mode: .multiplayerParked)
                 .padding(.horizontal, 24)
 
             HStack {
                 Spacer()
                 
                 BikeBikeModalCard {
-                    MultiplayerBanner(title: "Singleplayer")
+                    MultiplayerBanner(title: "Multiplayer")
                 } content: {
                     VStack(spacing: 28) {
                         Text("Lap Count")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 26, weight: .medium, design: .rounded))
                             .foregroundStyle(BikeBikeTheme.skyBlue)
-                            .padding(.top, 24) // Increased top padding
+                            .padding(.top, 32)
 
                         LapCountStepper(
                             value: Binding(
@@ -35,8 +35,8 @@ struct SoloLapSelectView: View {
                             )
                         )
 
-                        BikeBikePillButton(title: "Place Track", style: .yellow) {
-                            appState.confirmSoloLapSelect()
+                        BikeBikePillButton(title: "Continue", style: .yellow) {
+                            appState.confirmMultiplayerLapSelect()
                         }
                         .padding(.bottom, 8)
                     }
@@ -47,22 +47,15 @@ struct SoloLapSelectView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            BikeBikeBackButton { appState.goHome() }
-                .padding(.leading, 32)
-                .padding(.top, 24)
-                .ignoresSafeArea()
+            BikeBikeBackButton { 
+                appState.backFromMultiplayerLapSelect()
+            }
+            .padding(.leading, 32)
+            .padding(.top, 24)
+            .ignoresSafeArea()
         }
         .onAppear {
-            if appState.homeDeparture == nil {
-                fadeInControls()
-            }
-        }
-        .onChange(of: appState.homeDeparture) { _, departure in
-            if departure == nil {
-                fadeInControls()
-            } else {
-                controlsOpacity = 0
-            }
+            fadeInControls()
         }
     }
 
@@ -74,10 +67,10 @@ struct SoloLapSelectView: View {
     }
 }
 
-#Preview("Solo Lap Select") {
-    SoloLapSelectView()
+#Preview("Multiplayer Lap Select") {
+    MultiplayerLapSelectView()
         .environment(PreviewData.appState {
-            $0.phase = .soloLapSelect
-            $0.role = .solo
+            $0.phase = .multiplayerLapSelect
+            $0.role = .host
         })
 }

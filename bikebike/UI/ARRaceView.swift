@@ -110,3 +110,15 @@ private struct ARViewContainer: UIViewRepresentable {
         }
     }
 }
+
+// Note: the live camera feed is unavailable in the Xcode canvas / Simulator,
+// so the AR background renders black. The SwiftUI overlays still preview.
+#Preview("Racing") {
+    ARRaceView()
+        .environment(PreviewData.appState {
+            $0.phase = .racing
+            $0.players = PreviewData.players
+            $0.carStates = PreviewData.carStates
+            $0.leaderboard = PreviewData.leaderboard
+        })
+}

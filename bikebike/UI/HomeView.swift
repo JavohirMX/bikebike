@@ -14,7 +14,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 2)
+            BikeBikeBackground()
 
             HomeBikeScene(mode: .parked)
                 .padding(.horizontal, 24)
@@ -23,14 +23,14 @@ struct HomeView: View {
                 Spacer()
 
                 VStack(spacing: 20) {
-                    BikeBikeLogo(height: 72)
-
+                    BikeBikeLogo(height: 100)
                     VStack(spacing: 14) {
                         BikeBikePillButton(
-                            title: "Soloplayer",
+                            title: "Singleplayer",
                             systemImage: "person.fill",
                             style: .yellow,
-                            isEnabled: !buttonsDisabled
+                            isEnabled: !buttonsDisabled,
+                            glowStartDelay: 0.3
                         ) {
                             appState.triggerHomeDeparture(.solo)
                             appState.startSoloPractice()
@@ -40,7 +40,8 @@ struct HomeView: View {
                             title: "Multiplayer",
                             systemImage: "person.3.fill",
                             style: .blue,
-                            isEnabled: !buttonsDisabled
+                            isEnabled: !buttonsDisabled,
+                            glowStartDelay: 0.85
                         ) {
                             appState.triggerHomeDeparture(.multiplayer)
                             appState.beginPlayTogether()
@@ -49,10 +50,16 @@ struct HomeView: View {
                     .frame(width: 280)
                 }
                 .bikeBikeScreenContent(maxWidth: 400)
+                .offset(x: 160)
 
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+#Preview("Home", traits: .landscapeLeft) {
+    HomeView()
+        .environment(PreviewData.appState())
 }

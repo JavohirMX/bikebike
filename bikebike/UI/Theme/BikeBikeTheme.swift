@@ -17,21 +17,22 @@ enum BikeBikeTheme {
     static let pillRadius: CGFloat = 28
     static let modalRadius: CGFloat = 24
     static let panelShadow = Color.black.opacity(0.18)
+    private static let fontFamily = "Fredoka"
 
     static func titleFont(size: CGFloat = 28) -> Font {
-        .system(size: size, weight: .bold, design: .rounded)
+        .custom(fontFamily, size: size).weight(.bold)
     }
 
     static func buttonFont(size: CGFloat = 20) -> Font {
-        .system(size: size, weight: .bold, design: .rounded)
+        .custom(fontFamily, size: size).weight(.bold)
     }
 
     static func bodyFont(size: CGFloat = 17) -> Font {
-        .system(size: size, weight: .semibold, design: .rounded)
+        .custom(fontFamily, size: size).weight(.semibold)
     }
 
     static func captionFont(size: CGFloat = 14) -> Font {
-        .system(size: size, weight: .medium, design: .rounded)
+        .custom(fontFamily, size: size).weight(.medium)
     }
 }
 

@@ -100,3 +100,18 @@ struct GasBrakeControls: View {
             )
     }
 }
+
+#Preview("Race Controls") {
+    @Previewable @State var steer: Float = 0
+    @Previewable @State var gas = false
+    @Previewable @State var brake: Float = 0
+    ZStack {
+        Color.gray
+        HStack {
+            GasBrakeControls(gasPressed: $gas, brake: $brake)
+            Spacer()
+            VirtualJoystick(steer: $steer)
+        }
+        .padding(40)
+    }
+}

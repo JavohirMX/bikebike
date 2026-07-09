@@ -117,3 +117,13 @@ struct SessionErrorBanner: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
+#Preview("Checklist") {
+    SetupChecklistView(steps: PreviewData.checklistSteps)
+        .padding()
+}
+
+#Preview("Session Error Banner") {
+    SessionErrorBanner(message: "BikeBike couldn't reach the local network. Check Wi‑Fi and try again.") {}
+        .padding()
+}

@@ -166,11 +166,31 @@ final class AppState: RaceSessionDelegate {
 
     func selectMultiplayerRole(_ selectedRole: PlayerRole) {
         pendingMultiplayerRole = selectedRole
-        phase = .permissionPrimer
+        continueFromPermissionPrimer()
     }
 
     func backFromPermissionPrimer() {
         pendingMultiplayerRole = nil
+        phase = .multiplayerRolePicker
+    }
+
+    func backFromMultiplayerLapSelect() {
+        raceSession.stopAll()
+        isSessionConnected = false
+        sessionErrorMessage = nil
+        phase = .multiplayerRolePicker
+    }
+
+    func backFromHostSetup() {
+        phase = .multiplayerLapSelect
+    }
+
+    func backFromGuestSetup() {
+        stopTimers()
+        raceSession.stopAll()
+        isSessionConnected = false
+        sessionErrorMessage = nil
+        targetHostName = nil
         phase = .multiplayerRolePicker
     }
 
@@ -184,7 +204,7 @@ final class AppState: RaceSessionDelegate {
         switch pending {
         case .host:
             activateHosting()
-            phase = .hostSetup
+            phase = .multiplayerLapSelect
         case .guest:
             activateBrowsing()
             phase = .guestSetup
@@ -194,6 +214,10 @@ final class AppState: RaceSessionDelegate {
         default:
             break
         }
+    }
+
+    func confirmMultiplayerLapSelect() {
+        phase = .hostSetup
     }
 
     func retrySession() {
@@ -272,7 +296,7 @@ final class AppState: RaceSessionDelegate {
         case .solo:
             phase = .soloLapSelect
         case .host:
-            phase = .hostSetup
+            phase = .hostLobby
         case .guest:
             phase = .guestSetup
         }

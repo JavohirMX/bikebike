@@ -16,21 +16,36 @@ struct HomeDepartureOverlay: View {
         }
     }
 
+    private var duration: Duration {
+        switch style {
+        case .solo: .milliseconds(2200)
+        case .multiplayer: .milliseconds(2700)
+        }
+    }
+
     var body: some View {
         ZStack {
-            BikeBikeBackground(blurRadius: 2)
-                .opacity(0.85)
+            BikeBikeBackground()
 
             HomeBikeScene(mode: sceneMode)
                 .padding(.horizontal, 24)
         }
-        .ignoresSafeArea()
         .allowsHitTesting(false)
         .onAppear {
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1200))
+                try? await Task.sleep(for: duration)
                 appState.clearHomeDeparture()
             }
         }
     }
+}
+
+#Preview("Solo Departure") {
+    HomeDepartureOverlay(style: .solo)
+        .environment(PreviewData.appState())
+}
+
+#Preview("Multiplayer Departure") {
+    HomeDepartureOverlay(style: .multiplayer)
+        .environment(PreviewData.appState())
 }

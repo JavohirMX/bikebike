@@ -13,12 +13,7 @@ struct GuestWaitingView: View {
             BikeBikeBackground(blurRadius: 6)
 
             VStack(spacing: 32) {
-                HStack {
-                    BikeBikeBackButton { appState.goHome() }
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
+                Spacer()
 
                 Spacer()
 
@@ -32,5 +27,21 @@ struct GuestWaitingView: View {
                 Spacer()
             }
         }
+        .overlay(alignment: .topLeading) {
+            BikeBikeBackButton { appState.backFromGuestSetup() }
+                .padding(.leading, 32)
+                .padding(.top, 24)
+                .ignoresSafeArea()
+        }
     }
+}
+
+#Preview("Guest Waiting") {
+    GuestWaitingView()
+        .environment(PreviewData.appState {
+            $0.phase = .guestSetup
+            $0.role = .guest
+            $0.players = PreviewData.players
+            $0.trackPlaced = true
+        })
 }

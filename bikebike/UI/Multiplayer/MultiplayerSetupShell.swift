@@ -90,3 +90,22 @@ extension MultiplayerSetupShell where Banner == EmptyView {
         )
     }
 }
+
+#Preview("Setup Shell") {
+    MultiplayerSetupShell(
+        title: "Join Setup",
+        onLeave: {},
+        onHelp: {},
+        banner: {
+            SessionErrorBanner(message: "Local network access blocked.") {}
+        },
+        leftColumn: {
+            SetupChecklistView(steps: PreviewData.checklistSteps, compact: true)
+        },
+        rightColumn: {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.secondarySystemBackground))
+                .overlay(Text("Scanner"))
+        }
+    )
+}

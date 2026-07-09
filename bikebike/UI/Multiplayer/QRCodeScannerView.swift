@@ -81,3 +81,10 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         onScan?(value)
     }
 }
+
+// Note: the camera feed is unavailable in the Xcode canvas / Simulator,
+// so this previews as a black view. It confirms the type compiles.
+#Preview("QR Scanner") {
+    QRCodeScannerView { _ in }
+        .ignoresSafeArea()
+}

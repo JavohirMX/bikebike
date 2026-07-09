@@ -34,13 +34,29 @@ struct BikeBikeBackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "chevron.left")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(BikeBikeTheme.darkBlue)
+                .font(.system(size: 20, weight: .heavy))
+                .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
-                .background(BikeBikeTheme.cream)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: BikeBikeTheme.panelShadow, radius: 4, y: 2)
+                .background(
+                    Capsule()
+                        .fill(BikeBikeTheme.yellow)
+                        .shadow(color: (Color(hex: "C9A800") ?? .orange).opacity(0.55), radius: 0, x: 0, y: 3)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color(hex: "00AEEF") ?? BikeBikeTheme.skyBlue, lineWidth: 2)
+                        )
+                )
         }
         .buttonStyle(.plain)
+    }
+}
+
+#Preview("Background") {
+    ZStack {
+        BikeBikeBackground(blurRadius: 2)
+        VStack(spacing: 20) {
+            BikeBikeLogo(height: 72)
+            BikeBikeBackButton {}
+        }
     }
 }

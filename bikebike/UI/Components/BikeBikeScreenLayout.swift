@@ -80,3 +80,15 @@ struct AdaptiveColumnLayout<Left: View, Right: View>: View {
         }
     }
 }
+
+#Preview("Adaptive Column Layout") {
+    AdaptiveColumnLayout(columnSpacing: 16, showsDivider: true) {
+        Color.blue.opacity(0.2)
+            .overlay(Text("Left"))
+    } right: {
+        Color.green.opacity(0.2)
+            .overlay(Text("Right"))
+    }
+    .frame(height: 300)
+    .padding()
+}
