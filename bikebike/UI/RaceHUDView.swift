@@ -17,6 +17,18 @@ struct RaceHUDView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
+        .overlay(alignment: .top) {
+            if let time = appState.dnfTimeRemaining {
+                Text("Race ends in \(time)s!")
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.85))
+                    .clipShape(Capsule())
+                    .padding(.top, 72)
+            }
+        }
     }
 
     private var topBar: some View {
@@ -39,7 +51,8 @@ struct RaceHUDView: View {
             Spacer()
 
             let localLap = appState.carStates.first { $0.playerId == appState.raceSession.localPlayerId }?.currentLap ?? 0
-            Text("Lap \(localLap)/\(appState.raceConfig.lapCount)")
+            let displayLap = min(localLap + 1, appState.raceConfig.lapCount)
+            Text("Lap \(displayLap)/\(appState.raceConfig.lapCount)")
                 .font(.system(.title3, design: .rounded).bold())
 
             Spacer()
@@ -318,9 +331,9 @@ struct ResultsView: View {
             StarRatingView(rating: stars)
                 .frame(width: 100, alignment: .center)
 
-            Text(formatTime(entry.totalTime))
-                .font(.system(size: 16, weight: .regular, design: .rounded))
-                .foregroundStyle(Color(hex: "4A3D31") ?? .black)
+            Text(entry.status == .dnf ? "DNF" : formatTime(entry.totalTime))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(entry.status == .dnf ? Color.red : (Color(hex: "4A3D31") ?? .black))
                 .frame(width: 100, alignment: .center)
         }
         .padding(.vertical, 10)
