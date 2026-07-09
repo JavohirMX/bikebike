@@ -1079,7 +1079,15 @@ final class AppState: RaceSessionDelegate {
         }
         carStates.removeAll()
         for (index, player) in players.enumerated() {
-            await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index, isLocal: player.peerId == raceSession.localPlayerId)
+            let isLocal = player.peerId == raceSession.localPlayerId
+            let showIndicator = isLocal && role != .solo
+            await arController.spawnCar(
+                playerId: player.peerId,
+                driverId: player.driverId,
+                gridIndex: index,
+                isLocal: isLocal,
+                showOwnBikeIndicator: showIndicator
+            )
             carStates.append(CarState(
                 playerId: player.peerId,
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
@@ -1294,7 +1302,15 @@ final class AppState: RaceSessionDelegate {
         guard phase == .racing, !arController.hasCar(playerId: playerId) else { return }
         guard let index = players.firstIndex(where: { $0.peerId == playerId }) else { return }
         let player = players[index]
-        await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index, isLocal: player.peerId == raceSession.localPlayerId)
+        let isLocal = player.peerId == raceSession.localPlayerId
+        let showIndicator = isLocal && role != .solo
+        await arController.spawnCar(
+            playerId: player.peerId,
+            driverId: player.driverId,
+            gridIndex: index,
+            isLocal: isLocal,
+            showOwnBikeIndicator: showIndicator
+        )
         if !carStates.contains(where: { $0.playerId == playerId }) {
             carStates.append(CarState(
                 playerId: player.peerId,

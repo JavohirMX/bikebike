@@ -25,6 +25,8 @@ final class ARSceneController {
     private var carSpeeds: [String: Float] = [:]
     private var bikeMovementStates: [String: BikeMovementState] = [:]
     private var boostEmitterEntities: [String: Entity] = [:]
+    private var localPlayerIndicator: Entity?
+    private var localPlayerIndicatorBobStart: TimeInterval?
     private var remoteBoostActive: [String: Bool] = [:]
     private var remoteCarStates: [String: RemoteCarState] = [:]
     private var lastMeasuredArc: [String: Float] = [:]
@@ -352,7 +354,13 @@ final class ARSceneController {
         cars[playerId] != nil
     }
 
-    func spawnCar(playerId: String, driverId: String, gridIndex: Int, isLocal: Bool) async {
+    func spawnCar(
+        playerId: String,
+        driverId: String,
+        gridIndex: Int,
+        isLocal: Bool,
+        showOwnBikeIndicator: Bool = false
+    ) async {
         guard let trackAnchor else { return }
         removeCar(playerId: playerId)
 
@@ -366,6 +374,15 @@ final class ARSceneController {
 
         trackAnchor.addChild(car)
         cars[playerId] = car
+
+        if showOwnBikeIndicator {
+            let indicator = LocalPlayerIndicator.make(
+                accentHex: DriverCatalog.accentColorHex(for: driverId)
+            )
+            car.addChild(indicator)
+            localPlayerIndicator = indicator
+            localPlayerIndicatorBobStart = Date().timeIntervalSince1970
+        }
         carSpeeds[playerId] = 0
         bikeMovementStates[playerId] = BikeMovementModel.initialState(from: car.orientation)
         let spawnArc = trackGeometry.arcLength(for: spawn.position)
@@ -380,6 +397,10 @@ final class ARSceneController {
     }
 
     func removeCar(playerId: String) {
+        if localPlayerIndicator?.parent == cars[playerId] {
+            localPlayerIndicator = nil
+            localPlayerIndicatorBobStart = nil
+        }
         cars[playerId]?.removeFromParent()
         cars.removeValue(forKey: playerId)
         carSpeeds.removeValue(forKey: playerId)
@@ -453,9 +474,16 @@ final class ARSceneController {
         )
 
         setBoostActive(playerId: playerId, active: boostActive)
+        updateLocalPlayerIndicatorBob()
         checkFinishLineCrossing(playerId: playerId, car: car, previousLocal: previousLocal)
         return result.hitWall
     }
+
+    private func updateLocalPlayerIndicatorBob() {
+        guard let indicator = localPlayerIndicator else { return }
+        let start = localPlayerIndicatorBobStart ?? Date().timeIntervalSince1970
+        let elapsed = Date().timeIntervalSince1970 - start
+        indicator.position.y = LocalPlayerIndicator.heightAboveCar + LocalPlayerIndicator.bobOffset(time: elapsed)
 
     func setBoostActive(playerId: String, active: Bool) {
         guard let car = cars[playerId] else { return }
