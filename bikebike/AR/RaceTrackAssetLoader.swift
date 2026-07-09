@@ -210,7 +210,7 @@ enum RaceTrackFactory {
         guard let entity = makeSyncedTrackEntity(for: trackId, scale: scale) else {
             return nil
         }
-        applyOpacity(0.55, to: entity)
+        applyOpacity(0.85, to: entity)
         return entity
     }
 
