@@ -20,10 +20,12 @@ final class AppState: RaceSessionDelegate {
     var homeDeparture: HomeDepartureStyle?
     var raceConfig = RaceConfig()
     var players: [PlayerProfile] = []
+    var readyPlayers: Set<String> = []
     var carStates: [CarState] = []
     var leaderboard: [LeaderboardEntry] = []
     var discoveredSessions: [SessionInfo] = []
     var isSessionConnected = false
+    var guestDriverConfirmed = false
     var connectedHostName: String?
     var showConnectionHelp = false
     var sessionErrorMessage: String?
@@ -60,6 +62,10 @@ final class AppState: RaceSessionDelegate {
     var hasDetectedPlane = false
     var trackingQuality: ARTrackingQuality = .normal
     var canConfirmPlacement = false
+
+    var isLocalPlayerFinished: Bool {
+        carStates.first(where: { $0.playerId == raceSession.localPlayerId })?.finished == true
+    }
 
     let raceSession = NetworkSessionManager()
     let arController = ARSceneController()
@@ -144,7 +150,7 @@ final class AppState: RaceSessionDelegate {
         case .host:
             phase = .hostSetup
         case .guest:
-            phase = .guestSetup
+            goHome()
         }
     }
 
@@ -161,6 +167,7 @@ final class AppState: RaceSessionDelegate {
         leaderboard = []
         discoveredSessions = []
         isSessionConnected = false
+        guestDriverConfirmed = false
         connectedHostName = nil
         sessionErrorMessage = nil
         sessionHasStarted = false
@@ -253,6 +260,7 @@ final class AppState: RaceSessionDelegate {
         stopTimers()
         raceSession.stopAll()
         isSessionConnected = false
+        guestDriverConfirmed = false
         sessionErrorMessage = nil
         targetHostName = nil
         phase = .multiplayerRolePicker
@@ -374,6 +382,12 @@ final class AppState: RaceSessionDelegate {
         broadcastLocalPlayerProfile()
     }
 
+    func confirmGuestDriver() {
+        guestDriverConfirmed = true
+        startLobbySync()
+        broadcastLocalPlayerProfile()
+    }
+
     private func broadcastLocalPlayerProfile() {
         let localId = raceSession.localPlayerId
         guard let profile = players.first(where: { $0.peerId == localId }) else { return }
@@ -422,7 +436,7 @@ final class AppState: RaceSessionDelegate {
         case .solo:
             phase = .soloLapSelect
         case .host:
-            phase = .hostLobby
+            phase = .multiplayerLapSelect
         case .guest:
             phase = .guestSetup
         }
@@ -490,11 +504,7 @@ final class AppState: RaceSessionDelegate {
         qrJoinErrorMessage = nil
         lobbySyncErrorMessage = nil
         raceSession.connect(to: session)
-        if phase == .guestSetup || phase == .browseSessions {
-            phase = phase == .browseSessions ? .guestLobby : .guestSetup
-        } else {
-            phase = .guestLobby
-        }
+        phase = .guestSetup
     }
 
     func beginPlacement() {
@@ -567,22 +577,26 @@ final class AppState: RaceSessionDelegate {
 
     func startRace() async {
         guard trackPlaced else { return }
-        let beginTime = Date().timeIntervalSince1970 + 3.5
-        await beginCountdown(raceBeginTime: beginTime)
-
-        if role == .host {
-            let payload = RaceStartPayload(startTime: beginTime, config: raceConfig)
-            if let envelope = try? raceSession.encode(type: .raceStart, payload: payload) {
+        if role == .solo {
+            await prepareForRaceLocally()
+            checkAllPlayersReady()
+        } else if role == .host {
+            sessionHasStarted = true
+            readyPlayers.removeAll()
+            readyPlayers.insert(raceSession.localPlayerId)
+            let payload = PrepareRacePayload(config: raceConfig)
+            if let envelope = try? raceSession.encode(type: .prepareRace, payload: payload) {
                 raceSession.send(envelope, reliable: true)
             }
+            await prepareForRaceLocally()
+            checkAllPlayersReady()
         }
     }
 
-    private func beginCountdown(raceBeginTime: TimeInterval) async {
-        raceBeginTimestamp = raceBeginTime
-        countdownLabel = "3"
-        lastCountdownTickSecond = 3
+    @MainActor
+    func prepareForRaceLocally() async {
         phase = .countdown
+        countdownLabel = "Waiting for players..."
         elapsedTime = 0
         raceStartTime = nil
         lastRemotePoseTimestamp = [:]
@@ -590,6 +604,37 @@ final class AppState: RaceSessionDelegate {
         boostRequested = false
         setRaceIdleTimerDisabled(true)
         await spawnAllCars()
+        
+        if role == .guest {
+            let payload = PlayerReadyPayload(playerId: raceSession.localPlayerId)
+            if let env = try? raceSession.encode(type: .playerReady, payload: payload) {
+                raceSession.sendToHost(env, reliable: true)
+            }
+        }
+    }
+
+    func checkAllPlayersReady() {
+        guard role == .host || role == .solo else { return }
+        let totalPlayers = role == .solo ? 1 : players.count
+        if readyPlayers.count >= totalPlayers {
+            let beginTime = Date().timeIntervalSince1970 + 3.0
+            
+            if role == .host {
+                let payload = RaceStartPayload(startTime: beginTime)
+                if let env = try? raceSession.encode(type: .raceStart, payload: payload) {
+                    raceSession.send(env, reliable: true)
+                }
+            }
+            
+            Task { await beginCountdown(raceBeginTime: beginTime) }
+        }
+    }
+
+    private func beginCountdown(raceBeginTime: TimeInterval) async {
+        raceBeginTimestamp = raceBeginTime
+        countdownLabel = "3"
+        lastCountdownTickSecond = 3
+        
         startCountdownTimer()
         HapticManager.countdownTick()
         AudioManager.shared.play(.countdownBeep)
@@ -703,7 +748,7 @@ final class AppState: RaceSessionDelegate {
     }
 
     func sessionPeerConnected(_ peerId: String) {
-        if role == .guest {
+        if role == .guest && guestDriverConfirmed {
             startLobbySync()
         }
         updateSessionConnectionState()
@@ -774,19 +819,29 @@ final class AppState: RaceSessionDelegate {
             expectedWorldMapChunks = payload.totalChunks
             tryApplyPendingTrackPlacement()
 
-        case .raceStart:
-            guard let payload = try? envelope.decode(RaceStartPayload.self) else { return }
+        case .prepareRace:
+            guard let payload = try? envelope.decode(PrepareRacePayload.self) else { return }
             raceConfig = payload.config
             if phase == .racing || phase == .countdown { return }
-            let now = Date().timeIntervalSince1970
-            if payload.startTime <= now + 0.1 {
-                Task { await enterRacingFromLateJoin() }
-            } else if trackPlaced {
-                Task { await beginCountdown(raceBeginTime: payload.startTime) }
+            
+            if trackPlaced {
+                Task { await prepareForRaceLocally() }
             } else {
-                raceBeginTimestamp = payload.startTime
                 pendingRaceStart = true
             }
+
+        case .playerReady:
+            guard let payload = try? envelope.decode(PlayerReadyPayload.self) else { return }
+            if role == .host {
+                readyPlayers.insert(payload.playerId)
+                checkAllPlayersReady()
+            }
+
+        case .raceStart:
+            guard let payload = try? envelope.decode(RaceStartPayload.self) else { return }
+            if phase == .racing { return }
+            
+            Task { await beginCountdown(raceBeginTime: payload.startTime) }
 
         case .carPose:
             guard let payload = try? envelope.decode(CarPosePayload.self) else { return }
@@ -812,6 +867,11 @@ final class AppState: RaceSessionDelegate {
         case .lapCompleted:
             guard let payload = try? envelope.decode(LapCompletedPayload.self) else { return }
             applyLapUpdate(payload)
+            if role == .host {
+                if let env = try? raceSession.encode(type: .lapCompleted, payload: payload) {
+                    raceSession.send(env, reliable: true, excluding: peerId)
+                }
+            }
 
         case .raceEnd:
             guard let payload = try? envelope.decode(RaceEndPayload.self) else { return }
@@ -1003,13 +1063,14 @@ final class AppState: RaceSessionDelegate {
         }
         carStates.removeAll()
         for (index, player) in players.enumerated() {
-            await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index)
+            await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index, isLocal: player.peerId == raceSession.localPlayerId)
             carStates.append(CarState(
                 playerId: player.peerId,
                 transform: TransformPacket(position: .zero, rotation: simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))),
                 speed: 0,
                 currentLap: 0,
                 lastLapTime: nil,
+                fastestLapTime: nil,
                 totalTime: 0,
                 finished: false,
                 finishTime: nil,
@@ -1170,16 +1231,10 @@ final class AppState: RaceSessionDelegate {
 
         if pendingRaceStart {
             pendingRaceStart = false
-            if let beginTime = raceBeginTimestamp {
-                let now = Date().timeIntervalSince1970
-                if beginTime <= now + 0.1 {
-                    Task { await enterRacingFromLateJoin() }
-                } else if phase != .countdown, phase != .racing {
-                    Task { await beginCountdown(raceBeginTime: beginTime) }
-                }
-            } else if phase != .racing, phase != .countdown {
-                Task { await startRace() }
+            if phase != .countdown, phase != .racing {
+                Task { await prepareForRaceLocally() }
             }
+
         } else if phase == .racing || phase == .countdown {
             Task { await respawnAllCars() }
         }
@@ -1223,7 +1278,7 @@ final class AppState: RaceSessionDelegate {
         guard phase == .racing, !arController.hasCar(playerId: playerId) else { return }
         guard let index = players.firstIndex(where: { $0.peerId == playerId }) else { return }
         let player = players[index]
-        await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index)
+        await arController.spawnCar(playerId: player.peerId, driverId: player.driverId, gridIndex: index, isLocal: player.peerId == raceSession.localPlayerId)
         if !carStates.contains(where: { $0.playerId == playerId }) {
             carStates.append(CarState(
                 playerId: player.peerId,
@@ -1246,22 +1301,7 @@ final class AppState: RaceSessionDelegate {
 
     private func handleLapCrossed(playerId: String) {
         guard phase == .racing else { return }
-        let now = Date()
-
-        if role == .host || role == .solo {
-            recordLap(for: playerId)
-        } else {
-            guard let car = carStates.first(where: { $0.playerId == playerId }) else { return }
-            let payload = LapCompletedPayload(
-                playerId: playerId,
-                lapNumber: car.currentLap + 1,
-                lapTime: now.timeIntervalSince(lastLapCrossTime[playerId] ?? raceStartTime ?? now),
-                totalTime: now.timeIntervalSince(raceStartTime ?? now)
-            )
-            if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
-                raceSession.sendToHost(envelope, reliable: true)
-            }
-        }
+        recordLap(for: playerId)
     }
 
     private func recordLap(for playerId: String) {
@@ -1273,12 +1313,17 @@ final class AppState: RaceSessionDelegate {
 
         carStates[idx].currentLap += 1
         carStates[idx].lastLapTime = lapTime
+        let previousFastest = carStates[idx].fastestLapTime ?? .infinity
+        if lapTime < previousFastest {
+            carStates[idx].fastestLapTime = lapTime
+        }
         carStates[idx].totalTime = now.timeIntervalSince(raceStartTime ?? now)
 
         let payload = LapCompletedPayload(
             playerId: playerId,
             lapNumber: carStates[idx].currentLap,
             lapTime: lapTime,
+            fastestLapTime: carStates[idx].fastestLapTime ?? lapTime,
             totalTime: carStates[idx].totalTime
         )
 
@@ -1286,12 +1331,17 @@ final class AppState: RaceSessionDelegate {
             if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
                 raceSession.send(envelope, reliable: true)
             }
+        } else if role == .guest {
+            if let envelope = try? raceSession.encode(type: .lapCompleted, payload: payload) {
+                raceSession.sendToHost(envelope, reliable: true)
+            }
         }
 
         if carStates[idx].currentLap >= raceConfig.lapCount {
             carStates[idx].finished = true
             carStates[idx].finishTime = carStates[idx].totalTime
             carStates[idx].status = .finished
+            arController.hideCar(playerId: playerId)
             if playerId == raceSession.localPlayerId {
                 HapticManager.finishLine()
                 AudioManager.shared.play(.finishFanfare)
@@ -1306,11 +1356,13 @@ final class AppState: RaceSessionDelegate {
         guard let idx = carStates.firstIndex(where: { $0.playerId == payload.playerId }) else { return }
         carStates[idx].currentLap = payload.lapNumber
         carStates[idx].lastLapTime = payload.lapTime
+        carStates[idx].fastestLapTime = payload.fastestLapTime
         carStates[idx].totalTime = payload.totalTime
         if payload.lapNumber >= raceConfig.lapCount {
             carStates[idx].finished = true
             carStates[idx].finishTime = payload.totalTime
             carStates[idx].status = .finished
+            arController.hideCar(playerId: payload.playerId)
             startDNFTimerIfNeeded()
         }
         refreshLeaderboard()

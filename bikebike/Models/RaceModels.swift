@@ -200,6 +200,7 @@ struct CarState: Codable, Identifiable, Equatable {
     var speed: Float
     var currentLap: Int
     var lastLapTime: TimeInterval?
+    var fastestLapTime: TimeInterval?
     var totalTime: TimeInterval
     var finished: Bool
     var finishTime: TimeInterval?
@@ -213,6 +214,7 @@ struct LeaderboardEntry: Codable, Identifiable, Equatable {
     let displayName: String
     let currentLap: Int
     let lastLapTime: TimeInterval?
+    let fastestLapTime: TimeInterval?
     let totalTime: TimeInterval
     let status: PlayerStatus
 }
@@ -255,6 +257,7 @@ enum LeaderboardSorter {
                 displayName: name,
                 currentLap: car.currentLap,
                 lastLapTime: car.lastLapTime,
+                fastestLapTime: car.fastestLapTime,
                 totalTime: car.totalTime,
                 status: car.status
             )

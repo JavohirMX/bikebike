@@ -17,6 +17,8 @@ enum RaceMessageType: String, Codable {
     case playerLeft
     case playerProfile
     case worldMapChunk
+    case prepareRace
+    case playerReady
 }
 
 struct RaceEnvelope: Codable {
@@ -97,9 +99,16 @@ struct WorldMapChunkPayload: Codable {
     let data: Data
 }
 
+struct PrepareRacePayload: Codable {
+    let config: RaceConfig
+}
+
+struct PlayerReadyPayload: Codable {
+    let playerId: String
+}
+
 struct RaceStartPayload: Codable {
     let startTime: TimeInterval
-    let config: RaceConfig
 }
 
 struct CarPosePayload: Codable {
@@ -132,6 +141,7 @@ struct LapCompletedPayload: Codable {
     let playerId: String
     let lapNumber: Int
     let lapTime: TimeInterval
+    let fastestLapTime: TimeInterval
     let totalTime: TimeInterval
 }
 

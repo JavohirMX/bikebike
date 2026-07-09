@@ -30,8 +30,8 @@ struct BikeMovementResult {
 }
 
 enum BikeMovementModel {
-    static let maxSpeed: Float = 0.35
-    static let thrustForce: Float = 2.5
+    static let maxSpeed: Float = 0.28 // was 0.35
+    static let thrustForce: Float = 2.0 // was 2.5
     static let brakeForce: Float = 4.5
     static let rollingDrag: Float = 1.2
     static let wallSlideFriction: Float = 0.75
@@ -40,7 +40,7 @@ enum BikeMovementModel {
 
     static var boostedMaxSpeed: Float { maxSpeed * BoostState.speedMultiplier }
 
-    static let maxYawRate: Float = 2.8
+    static let maxYawRate: Float = 3.5 // was 2.8
     static let minSteerSpeed: Float = 0.05
     static let heightSmoothing: Float = 14
     static let pitchSmoothing: Float = 12

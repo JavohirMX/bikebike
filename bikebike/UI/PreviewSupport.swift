@@ -65,9 +65,9 @@ enum PreviewData {
     static var carStates: [CarState] {
         [
             CarState(playerId: "host-1", transform: transform(), speed: 3.2, currentLap: 2,
-                     lastLapTime: 11.8, totalTime: 42.3, finished: false, finishTime: nil, status: .racing),
+                     lastLapTime: 11.8, fastestLapTime: 11.8, totalTime: 42.3, finished: false, finishTime: nil, status: .racing),
             CarState(playerId: "guest-1", transform: transform(), speed: 2.7, currentLap: 1,
-                     lastLapTime: 13.4, totalTime: 40.1, finished: false, finishTime: nil, status: .racing)
+                     lastLapTime: 13.4, fastestLapTime: 13.4, totalTime: 40.1, finished: false, finishTime: nil, status: .racing)
         ]
     }
 
@@ -78,13 +78,13 @@ enum PreviewData {
     static var finishedLeaderboard: [LeaderboardEntry] {
         [
             LeaderboardEntry(rank: 1, playerId: "host-1", displayName: "Talin", currentLap: 3,
-                             lastLapTime: 11.2, totalTime: 35.6, status: .finished),
+                             lastLapTime: 11.2, fastestLapTime: 11.2, totalTime: 35.6, status: .finished),
             LeaderboardEntry(rank: 2, playerId: "guest-1", displayName: "Ish", currentLap: 3,
-                             lastLapTime: 12.9, totalTime: 39.4, status: .finished),
+                             lastLapTime: 12.9, fastestLapTime: 12.9, totalTime: 39.4, status: .finished),
             LeaderboardEntry(rank: 3, playerId: "guest-2", displayName: "Ana", currentLap: 3,
-                             lastLapTime: 13.1, totalTime: 42.1, status: .finished),
+                             lastLapTime: 13.1, fastestLapTime: 13.1, totalTime: 42.1, status: .finished),
             LeaderboardEntry(rank: 4, playerId: "guest-3", displayName: "TheNoder", currentLap: 3,
-                             lastLapTime: 14.5, totalTime: 45.8, status: .finished)
+                             lastLapTime: 14.5, fastestLapTime: 14.5, totalTime: 45.8, status: .finished)
         ]
     }
 

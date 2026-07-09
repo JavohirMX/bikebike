@@ -11,11 +11,32 @@ struct GuestSetupView: View {
 
     var body: some View {
         Group {
-            if appState.lobbyReady && appState.trackPlaced && appState.phase != .racing {
+            if appState.isRelocalizing {
+                statusOverlay(
+                    title: "Aligning to table...",
+                    message: "Point your phone at the same table as the host."
+                )
+            } else if appState.isLoadingTrackAssets {
+                ZStack {
+                    BikeBikeBackground(blurRadius: 6)
+                    statusOverlay(
+                        title: "Loading track...",
+                        message: "Preparing the race track from the host."
+                    )
+                }
+            } else if appState.guestDriverConfirmed {
                 GuestWaitingView()
             } else {
                 scannerContent
             }
+        }
+        .overlay(alignment: .topLeading) {
+            BikeBikeBackButton { 
+                appState.backFromGuestSetup() 
+            }
+            .padding(.leading, 32)
+            .padding(.top, 24)
+            .ignoresSafeArea()
         }
     }
 
@@ -44,18 +65,8 @@ struct GuestSetupView: View {
                 }
             }
             
-            // Connecting, loading track assets, or relocalizing
-            if appState.isLoadingTrackAssets {
-                statusOverlay(
-                    title: "Loading track...",
-                    message: "Preparing the race track from the host."
-                )
-            } else if appState.isRelocalizing {
-                statusOverlay(
-                    title: "Aligning to table...",
-                    message: "Point your phone at the same table as the host."
-                )
-            } else if appState.isSessionConnected {
+            // Connecting
+            if appState.isSessionConnected {
                 connectedLobbyOverlay
             } else if let host = appState.targetHostName {
                 statusOverlay(
@@ -88,14 +99,6 @@ struct GuestSetupView: View {
                 Spacer()
             }
         }
-        .overlay(alignment: .topLeading) {
-            BikeBikeBackButton { 
-                appState.backFromGuestSetup() 
-            }
-            .padding(.leading, 32)
-            .padding(.top, 24)
-            .ignoresSafeArea()
-        }
     }
     
     private var connectedLobbyOverlay: some View {
@@ -119,15 +122,19 @@ struct GuestSetupView: View {
             }
             .padding(.horizontal, 24)
 
-            if let error = appState.driverSelectionError {
-                Text(error)
-                    .font(BikeBikeTheme.captionFont(size: 13))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.red.opacity(0.75))
-                    .clipShape(Capsule())
+            BikeBikePillButton(title: "Next", style: .yellow) {
+                appState.confirmGuestDriver()
             }
+
+            if let error = appState.driverSelectionError {
+                    Text(error)
+                        .font(BikeBikeTheme.captionFont(size: 13))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.75))
+                        .clipShape(Capsule())
+                }
         }
         .padding(28)
         .frame(maxWidth: 420)

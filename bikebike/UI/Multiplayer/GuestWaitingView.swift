@@ -27,12 +27,6 @@ struct GuestWaitingView: View {
                 Spacer()
             }
         }
-        .overlay(alignment: .topLeading) {
-            BikeBikeBackButton { appState.backFromGuestSetup() }
-                .padding(.leading, 32)
-                .padding(.top, 24)
-                .ignoresSafeArea()
-        }
     }
 }
 

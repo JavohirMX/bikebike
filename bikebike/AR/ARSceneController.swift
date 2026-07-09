@@ -331,12 +331,13 @@ final class ARSceneController {
         cars[playerId] != nil
     }
 
-    func spawnCar(playerId: String, driverId: String, gridIndex: Int) async {
+    func spawnCar(playerId: String, driverId: String, gridIndex: Int, isLocal: Bool) async {
         guard let trackAnchor else { return }
         removeCar(playerId: playerId)
 
         let car = await CarModelLoader.makeCar(driverId: driverId)
         car.name = "Car_\(playerId)"
+
 
         let spawn = trackGeometry.spawnTransform(gridIndex: gridIndex)
         car.position = spawn.position
@@ -353,6 +354,10 @@ final class ARSceneController {
         lastLapTimestamp[playerId] = Date().timeIntervalSince1970
     }
 
+    func hideCar(playerId: String) {
+        cars[playerId]?.isEnabled = false
+    }
+
     func removeCar(playerId: String) {
         cars[playerId]?.removeFromParent()
         cars.removeValue(forKey: playerId)
@@ -365,6 +370,21 @@ final class ARSceneController {
         distanceSinceLap.removeValue(forKey: playerId)
         passedCheckpoint.removeValue(forKey: playerId)
         lastLapTimestamp.removeValue(forKey: playerId)
+    }
+
+    private func disableLights(on entity: Entity) {
+        if entity.components.has(SpotLightComponent.self) {
+            entity.components.remove(SpotLightComponent.self)
+        }
+        if entity.components.has(PointLightComponent.self) {
+            entity.components.remove(PointLightComponent.self)
+        }
+        if entity.components.has(DirectionalLightComponent.self) {
+            entity.components.remove(DirectionalLightComponent.self)
+        }
+        for child in entity.children {
+            disableLights(on: child)
+        }
     }
 
     func removeAllCars() {
@@ -549,8 +569,8 @@ final class ARSceneController {
         }
 
         let delta = trackGeometry.forwardArcDelta(from: lastMeasured, to: measured)
-        // Ensure the step is forward and not a massive teleport (e.g., > 10% of the track in one frame)
-        let maxStep = trackGeometry.perimeterLength * 0.10
+        // Allow up to 45% of the track per frame to support low framerates without resetting progress
+        let maxStep = trackGeometry.perimeterLength * 0.45
         guard delta > 0, delta <= maxStep else { 
             // Update lastMeasured so we don't get permanently stuck if there was a jump
             lastMeasuredArc[playerId] = measured
