@@ -57,6 +57,18 @@ struct RootView: View {
         .onOpenURL { url in
             appState.handleJoinURL(url)
         }
+        .onAppear {
+            AudioManager.shared.syncBackgroundMusic(for: appState.phase)
+        }
+        .onChange(of: appState.phase) { _, phase in
+            AudioManager.shared.syncBackgroundMusic(for: phase)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .audioPreferencesChanged)) { _ in
+            AudioManager.shared.syncBackgroundMusic(for: appState.phase)
+            if !AudioPreferences.isSFXEnabled {
+                AudioManager.shared.stopRaceAudio()
+            }
+        }
     }
 
     private var showsAR: Bool {

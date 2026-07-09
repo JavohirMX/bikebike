@@ -130,7 +130,7 @@ final class AppState: RaceSessionDelegate {
     func exitRace() {
         stopTimers()
         setRaceIdleTimerDisabled(false)
-        AudioManager.shared.stopAll()
+        AudioManager.shared.stopRaceAudio()
         steerInput = 0
         gasPressed = false
         boostState = BoostState()
@@ -157,7 +157,7 @@ final class AppState: RaceSessionDelegate {
     func goHome() {
         stopTimers()
         setRaceIdleTimerDisabled(false)
-        AudioManager.shared.stopAll()
+        AudioManager.shared.stopRaceAudio()
         raceSession.stopAll()
         arController.teardown()
         phase = .home
@@ -414,7 +414,7 @@ final class AppState: RaceSessionDelegate {
     func playAgain() {
         stopTimers()
         setRaceIdleTimerDisabled(false)
-        AudioManager.shared.stopAll()
+        AudioManager.shared.stopRaceAudio()
         steerInput = 0
         gasPressed = false
         boostState = BoostState()
@@ -742,7 +742,7 @@ final class AppState: RaceSessionDelegate {
         arController.applyBoostBurst(playerId: raceSession.localPlayerId)
         arController.setBoostActive(playerId: raceSession.localPlayerId, active: true)
         HapticManager.boostActivated()
-        AudioManager.shared.play(.boost)
+        AudioManager.shared.playBoost(for: localSelectedDriverId)
     }
 
     // MARK: - RaceSessionDelegate
@@ -894,7 +894,7 @@ final class AppState: RaceSessionDelegate {
             leaderboard = payload.leaderboard
             stopTimers()
             setRaceIdleTimerDisabled(false)
-            AudioManager.shared.stopAll()
+            AudioManager.shared.stopRaceAudio()
             phase = .results
 
         case .playerLeft:
@@ -1418,7 +1418,7 @@ final class AppState: RaceSessionDelegate {
         refreshLeaderboard()
         stopTimers()
         setRaceIdleTimerDisabled(false)
-        AudioManager.shared.stopAll()
+        AudioManager.shared.stopRaceAudio()
         dnfTimerTask?.cancel()
         dnfTimerTask = nil
         dnfTimeRemaining = nil

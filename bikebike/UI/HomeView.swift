@@ -7,6 +7,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(AppState.self) private var appState
+    @State private var showsSettings = false
 
     private var buttonsDisabled: Bool {
         appState.homeDeparture != nil
@@ -20,6 +21,21 @@ struct HomeView: View {
                 .padding(.horizontal, 24)
 
             VStack {
+                HStack {
+                    Spacer()
+                    BikeBikeIconButton(
+                        systemImage: "gearshape.fill",
+                        style: .blue,
+                        size: 48,
+                        iconSize: 22,
+                        isEnabled: !buttonsDisabled
+                    ) {
+                        showsSettings = true
+                    }
+                }
+                .padding(.trailing, 24)
+                .padding(.top, 16)
+
                 Spacer()
 
                 VStack(spacing: 20) {
@@ -56,6 +72,10 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showsSettings) {
+            SettingsView()
+                .environment(appState)
+        }
     }
 }
 

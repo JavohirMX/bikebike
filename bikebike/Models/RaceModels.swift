@@ -28,6 +28,17 @@ enum AppPhase: Equatable {
     case results
 }
 
+extension AppPhase {
+    var playsBackgroundMusic: Bool {
+        switch self {
+        case .placement, .countdown, .racing, .results:
+            return false
+        default:
+            return true
+        }
+    }
+}
+
 struct BoostState: Equatable {
     var isActive: Bool = false
     var durationRemaining: TimeInterval = 0
