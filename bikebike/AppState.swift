@@ -163,6 +163,7 @@ final class AppState: RaceSessionDelegate {
         phase = .home
         role = .solo
         players = []
+        readyPlayers.removeAll()
         carStates = []
         leaderboard = []
         discoveredSessions = []
@@ -586,7 +587,8 @@ final class AppState: RaceSessionDelegate {
         guard trackPlaced else { return }
         if role == .solo {
             await prepareForRaceLocally()
-            checkAllPlayersReady()
+            let beginTime = Date().timeIntervalSince1970 + 3.0
+            await beginCountdown(raceBeginTime: beginTime)
         } else if role == .host {
             sessionHasStarted = true
             readyPlayers.removeAll()
@@ -603,7 +605,7 @@ final class AppState: RaceSessionDelegate {
     @MainActor
     func prepareForRaceLocally() async {
         phase = .countdown
-        countdownLabel = "Waiting for players..."
+        countdownLabel = role == .solo ? "Get ready..." : "Waiting for players..."
         elapsedTime = 0
         raceStartTime = nil
         lastRemotePoseTimestamp = [:]
