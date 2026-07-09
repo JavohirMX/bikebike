@@ -10,8 +10,6 @@ struct BikeBikeNicknameField: View {
     var placeholder: String = "Nickname"
     var onSubmit: (() -> Void)? = nil
 
-    @FocusState private var isFocused: Bool
-
     var body: some View {
         TextField(
             "",
@@ -23,7 +21,6 @@ struct BikeBikeNicknameField: View {
         .textInputAutocapitalization(.words)
         .autocorrectionDisabled()
         .submitLabel(.done)
-        .focused($isFocused)
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(
@@ -32,9 +29,6 @@ struct BikeBikeNicknameField: View {
         )
         .onSubmit {
             onSubmit?()
-        }
-        .onAppear {
-            isFocused = true
         }
     }
 }
