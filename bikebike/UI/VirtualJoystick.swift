@@ -110,7 +110,7 @@ struct GasBrakeControls: View {
         HStack {
             GasBrakeControls(gasPressed: $gas, brake: $brake)
             Spacer()
-            VirtualJoystick(steer: $steer)
+            SteerArrowButtons(steer: $steer)
         }
         .padding(40)
     }

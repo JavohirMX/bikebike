@@ -28,9 +28,9 @@ struct PlacementTrackStepper: View {
             .disabled(options.count <= 1)
 
             Text(selectedOption.shortTitle)
-                .font(BikeBikeTheme.titleFont(size: 24))
+                .font(BikeBikeTheme.titleFont(size: 20))
                 .foregroundStyle(BikeBikeTheme.darkBlue)
-                .frame(minWidth: 120)
+                .frame(minWidth: 100)
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -40,8 +40,8 @@ struct PlacementTrackStepper: View {
             }
             .disabled(options.count <= 1)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .background(BikeBikeTheme.cream.opacity(0.92))
         .clipShape(Capsule())
         .shadow(color: BikeBikeTheme.panelShadow, radius: 8, y: 4)
@@ -60,9 +60,9 @@ struct PlacementTrackStepper: View {
     private func stepperButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(BikeBikeTheme.darkBlue)
-                .frame(width: 48, height: 48)
+                .frame(width: 36, height: 36)
                 .background(Color.white.opacity(0.85))
                 .clipShape(Circle())
                 .shadow(color: BikeBikeTheme.panelShadow, radius: 4, y: 2)
