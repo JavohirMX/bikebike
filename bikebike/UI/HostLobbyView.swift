@@ -126,17 +126,12 @@ private struct LobbyShell: View {
                 "Laps: \(appState.raceConfig.lapCount)",
                 value: Binding(
                     get: { appState.raceConfig.lapCount },
-                    set: { appState.raceConfig.lapCount = $0 }
+                    set: { appState.setLapCount($0) }
                 ),
                 in: 1...10
             )
                 .padding(.horizontal)
                 .disabled(appState.role != .host)
-
-            if appState.role == .host && !appState.trackPlaced {
-                TrackOptionPicker()
-                    .padding(.horizontal)
-            }
 
             Text("Players (\(appState.players.count)/\(MultiplayerConstants.maxPlayers))")
                 .font(.subheadline.bold())

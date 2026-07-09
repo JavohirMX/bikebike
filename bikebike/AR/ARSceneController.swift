@@ -75,7 +75,6 @@ final class ARSceneController {
     }
 
     func preloadTrackIfNeeded() async {
-        await RaceTrackFactory.preloadAssets()
         refreshTrackGeometry()
     }
 
@@ -138,11 +137,14 @@ final class ARSceneController {
         ghostAnchor != nil && hasDetectedPlane && trackingQuality == .normal
     }
 
+    private(set) var isPreparingPlacementAssets = false
+
     func startPlacementPreview() {
         guard arView != nil else { return }
         isPlacementMode = true
         trackConfirmed = false
-        placementAssetsReady = DeviceMemoryPolicy.isConstrained
+        placementAssetsReady = false
+        isPreparingPlacementAssets = true
         placementScale = 1.0
         placementYaw = 0
         placementPosition = nil
@@ -154,8 +156,13 @@ final class ARSceneController {
 
         resumePlaneDetection()
         Task { @MainActor in
-            await preloadTrackIfNeeded()
+            let trackId = RaceTrackCatalog.normalizedTrackId(selectedTrackId)
+            if RaceTrackCatalog.isUSDZTrackId(trackId) {
+                await RaceTrackAssetLoader.preloadTrack(id: trackId)
+            }
+            refreshTrackGeometry()
             placementAssetsReady = true
+            isPreparingPlacementAssets = false
             tryInitialGhostPlacement()
         }
     }
@@ -163,6 +170,7 @@ final class ARSceneController {
     func cancelPlacementPreview() {
         isPlacementMode = false
         placementAssetsReady = false
+        isPreparingPlacementAssets = false
         placementPosition = nil
         removeGhost()
         planeDetectionStatus = .scanning
@@ -198,11 +206,16 @@ final class ARSceneController {
         applyGhostTransform()
     }
 
-    func confirmPlacement() -> PlacementResult? {
+    func confirmPlacement() async -> PlacementResult? {
         guard let ghost = ghostAnchor else { return nil }
+        let requestedTrackId = RaceTrackCatalog.normalizedTrackId(selectedTrackId)
         let worldTransform = ghost.transformMatrix(relativeTo: nil)
         let scale = placementScale
-        let presetId = RaceTrackFactory.resolvedTrackId(for: selectedTrackId)
+        if !ghostUsesFullTrackPreview, RaceTrackCatalog.isUSDZTrackId(requestedTrackId) {
+            await RaceTrackAssetLoader.preloadTrack(id: requestedTrackId)
+        }
+
+        let presetId = requestedTrackId
         removeTrack()
 
         if ghostUsesFullTrackPreview, let track = ghostTrackEntity {
@@ -219,13 +232,18 @@ final class ARSceneController {
         } else {
             removeGhost()
             let anchor = AnchorEntity(world: worldTransform)
-            let track = RaceTrackFactory.makeTrackEntity(for: presetId, scale: scale)
+            guard let track = RaceTrackFactory.makeSyncedTrackEntity(for: presetId, scale: scale) else {
+                return nil
+            }
             anchor.addChild(track)
             arView?.scene.addAnchor(anchor)
             trackAnchor = anchor
         }
 
-        trackGeometry = RaceTrackFactory.geometry(for: presetId, scale: scale)
+        guard let geometry = RaceTrackFactory.exactGeometry(for: presetId, scale: scale) else {
+            return nil
+        }
+        trackGeometry = geometry
         trackScale = scale
 
         isPlacementMode = false
@@ -245,16 +263,19 @@ final class ARSceneController {
     }
 
     private func createGhostTrack() {
-        guard let arView, let position = placementPosition else { return }
+        guard let arView, let position = placementPosition, placementAssetsReady else { return }
         removeGhost()
 
         var matrix = matrix_identity_float4x4
         matrix = simd_float4x4(simd_quatf(angle: placementYaw, axis: SIMD3(0, 1, 0)))
         matrix.columns.3 = SIMD4(position.x, position.y, position.z, 1)
 
+        guard let track = RaceTrackFactory.makePlacementGhost(for: selectedTrackId, scale: placementScale) else {
+            return
+        }
+
         let ghost = AnchorEntity(world: matrix)
         ghostUsesFullTrackPreview = RaceTrackFactory.usesFullTrackPlacementGhost
-        let track = RaceTrackFactory.makePlacementGhost(for: selectedTrackId, scale: placementScale)
         ghost.addChild(track)
         arView.scene.addAnchor(ghost)
         ghostAnchor = ghost

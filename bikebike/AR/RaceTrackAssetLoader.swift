@@ -202,27 +202,20 @@ enum RaceTrackAssetLoader {
 
 @MainActor
 enum RaceTrackFactory {
-    static var showsDebugBorders: Bool {
-        #if DEBUG
-        return !DeviceMemoryPolicy.isConstrained
-        #else
-        false
-        #endif
-    }
-
     static func preloadAssets() async {
         await RaceTrackAssetLoader.preload()
     }
 
-    static func makePlacementGhost(for trackId: String, scale: Float) -> Entity {
-        if DeviceMemoryPolicy.isConstrained {
-            return makeTrackEntity(for: ProceduralTrack.presetId, scale: scale, opacity: 0.55)
+    static func makePlacementGhost(for trackId: String, scale: Float) -> Entity? {
+        guard let entity = makeSyncedTrackEntity(for: trackId, scale: scale) else {
+            return nil
         }
-        return makeTrackEntity(for: trackId, scale: scale, opacity: 0.55)
+        applyOpacity(0.55, to: entity)
+        return entity
     }
 
     static var usesFullTrackPlacementGhost: Bool {
-        !DeviceMemoryPolicy.isConstrained
+        true
     }
 
     static func resolvedTrackId(for requestedTrackId: String) -> String {
@@ -234,6 +227,28 @@ enum RaceTrackFactory {
             return ProceduralTrack.presetId
         }
         return normalized
+    }
+
+    static func exactGeometry(for trackId: String, scale: Float = 1.0) -> (any RaceTrackGeometry)? {
+        let normalized = RaceTrackCatalog.normalizedTrackId(trackId)
+        let base: (any RaceTrackGeometry)?
+        if RaceTrackCatalog.isUSDZTrackId(normalized) {
+            base = RaceTrackAssetLoader.geometry(for: normalized)
+        } else if normalized == ProceduralTrack.presetId {
+            base = ProceduralTrackDefinition()
+        } else {
+            base = nil
+        }
+
+        guard let base else { return nil }
+        guard abs(scale - 1) > 0.0001 else { return base }
+        if let usdz = base as? USDZTrackGeometry {
+            return usdz.scaled(by: scale)
+        }
+        if let procedural = base as? ProceduralTrackDefinition {
+            return procedural.scaled(by: scale)
+        }
+        return base
     }
 
     static func geometry(for trackId: String, scale: Float = 1.0) -> any RaceTrackGeometry {
@@ -307,11 +322,6 @@ enum RaceTrackFactory {
 
         if let opacity {
             applyOpacity(opacity, to: entity)
-        }
-
-        if showsDebugBorders,
-           let overlay = TrackDebugVisualizer.makeOverlay(for: geometry(for: trackId, scale: scale)) {
-            entity.addChild(overlay)
         }
 
         return entity

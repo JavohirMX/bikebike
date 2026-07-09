@@ -11,6 +11,8 @@ struct TrackOption: Identifiable, Equatable {
     let title: String
     let shortTitle: String
     let subtitle: String
+    let thumbnailAssetName: String
+    let previewFootprint: SIMD2<Float>
     let isPrimary: Bool
 }
 
@@ -19,6 +21,8 @@ struct USDZTrackDefinition {
     let title: String
     let shortTitle: String
     let subtitle: String
+    let thumbnailAssetName: String
+    let previewFootprint: SIMD2<Float>
     let modelName: String
     let centerlineBaseName: String
 }
@@ -77,22 +81,26 @@ extension RaceTrackGeometry {
 enum RaceTrackCatalog {
     static let usdzTrackId = "racetrack-usdz"
     static let roadTrackId = "road-usdz"
-    static let defaultTrackId = usdzTrackId
+    static let defaultTrackId = roadTrackId
 
     static let usdzTracks: [USDZTrackDefinition] = [
         USDZTrackDefinition(
             id: usdzTrackId,
             title: "Racetrack",
             shortTitle: "Racetrack",
-            subtitle: "Primary track loaded from racetrack.usdz",
+            subtitle: "Classic circuit track loaded from racetrack.usdz",
+            thumbnailAssetName: "racetrack-thumbnail",
+            previewFootprint: SIMD2(0.92, 0.58),
             modelName: "racetrack",
             centerlineBaseName: "racetrack_centerline"
         ),
         USDZTrackDefinition(
             id: roadTrackId,
-            title: "Road",
-            shortTitle: "Road",
-            subtitle: "Curved road track from road.usdz",
+            title: "Sunrise Road",
+            shortTitle: "Sunrise Road",
+            subtitle: "Featured curved road track loaded from road.usdz",
+            thumbnailAssetName: "sunrise-road-thumbnail",
+            previewFootprint: SIMD2(1.18, 0.62),
             modelName: "road",
             centerlineBaseName: "road_centerline"
         ),
@@ -104,7 +112,9 @@ enum RaceTrackCatalog {
             title: $0.title,
             shortTitle: $0.shortTitle,
             subtitle: $0.subtitle,
-            isPrimary: $0.id == usdzTrackId
+            thumbnailAssetName: $0.thumbnailAssetName,
+            previewFootprint: $0.previewFootprint,
+            isPrimary: $0.id == roadTrackId
         )
     } + [
         TrackOption(
@@ -112,6 +122,8 @@ enum RaceTrackCatalog {
             title: "Classic Oval",
             shortTitle: "Classic",
             subtitle: "Secondary procedural fallback track",
+            thumbnailAssetName: "classic-oval-thumbnail",
+            previewFootprint: SIMD2(0.82, 0.54),
             isPrimary: false
         ),
     ]

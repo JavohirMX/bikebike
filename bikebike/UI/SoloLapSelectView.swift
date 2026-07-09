@@ -24,26 +24,11 @@ struct SoloLapSelectView: View {
                 BikeBikeModalCard {
                     MultiplayerBanner(title: "Singleplayer")
                 } content: {
-                    VStack(spacing: 28) {
-                        Text("Lap Count")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(BikeBikeTheme.skyBlue)
-                            .padding(.top, 24) // Increased top padding
-
-                        LapCountStepper(
-                            value: Binding(
-                                get: { appState.raceConfig.lapCount },
-                                set: { appState.raceConfig.lapCount = $0 }
-                            )
-                        )
-
-                        BikeBikePillButton(title: "Place Track", style: .yellow) {
-                            appState.confirmSoloLapSelect()
-                        }
-                        .padding(.bottom, 8)
+                    RaceSetupPanel(continueTitle: "Place Track") {
+                        appState.confirmSoloLapSelect()
                     }
                 }
-                .frame(width: 380)
+                .frame(width: 420)
                 .padding(.trailing, 40)
                 .opacity(controlsOpacity)
             }

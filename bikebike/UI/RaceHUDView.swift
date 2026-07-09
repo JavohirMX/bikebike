@@ -99,7 +99,14 @@ struct PlacementOverlay: View {
             Spacer()
 
             VStack(spacing: 8) {
-                PlacementTrackStepper()
+                Text("Placing: \(RaceTrackCatalog.option(for: appState.raceConfig.trackId).shortTitle)")
+                    .font(BikeBikeTheme.bodyFont(size: 18))
+                    .foregroundStyle(BikeBikeTheme.darkBlue)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(BikeBikeTheme.cream.opacity(0.92))
+                    .clipShape(Capsule())
+                    .shadow(color: BikeBikeTheme.panelShadow, radius: 8, y: 4)
 
                 BikeBikePillButton(
                     title: "Confirm Placement",

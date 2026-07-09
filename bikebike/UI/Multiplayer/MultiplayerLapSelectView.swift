@@ -22,26 +22,11 @@ struct MultiplayerLapSelectView: View {
                 BikeBikeModalCard {
                     MultiplayerBanner(title: "Multiplayer")
                 } content: {
-                    VStack(spacing: 28) {
-                        Text("Lap Count")
-                            .font(.system(size: 26, weight: .medium, design: .rounded))
-                            .foregroundStyle(BikeBikeTheme.skyBlue)
-                            .padding(.top, 32)
-
-                        LapCountStepper(
-                            value: Binding(
-                                get: { appState.raceConfig.lapCount },
-                                set: { appState.raceConfig.lapCount = $0 }
-                            )
-                        )
-
-                        BikeBikePillButton(title: "Continue", style: .yellow) {
-                            appState.confirmMultiplayerLapSelect()
-                        }
-                        .padding(.bottom, 8)
+                    RaceSetupPanel(continueTitle: "Continue") {
+                        appState.confirmMultiplayerLapSelect()
                     }
                 }
-                .frame(width: 380)
+                .frame(width: 420)
                 .padding(.trailing, 40)
                 .opacity(controlsOpacity)
             }
