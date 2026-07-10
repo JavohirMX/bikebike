@@ -5,7 +5,6 @@
 //  Shared sample data used by SwiftUI #Preview blocks across the UI layer.
 //
 
-#if DEBUG
 import SwiftUI
 import simd
 
@@ -96,4 +95,3 @@ enum PreviewData {
         ]
     }
 }
-#endif
