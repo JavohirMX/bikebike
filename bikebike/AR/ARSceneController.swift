@@ -69,11 +69,11 @@ final class ARSceneController {
     private var placementAssetsReady = false
     private let leaderboardScoreboard = ARLeaderboardScoreboard()
 
-    func attach(to arView: ARView, sessionDelegate: ARSessionDelegate) {
+    func attach(to arView: ARView, sessionCoordinator: ARSessionCoordinator) {
         self.arView = arView
-        sessionCoordinator = sessionDelegate as? ARSessionCoordinator
+        self.sessionCoordinator = sessionCoordinator
         arView.environment.sceneUnderstanding.options = []
-        arView.session.delegate = sessionDelegate
+        arView.session.delegate = sessionCoordinator
         flushPendingState(session: arView.session)
     }
 

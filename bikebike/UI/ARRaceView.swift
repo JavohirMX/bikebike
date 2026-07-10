@@ -98,7 +98,7 @@ private struct ARViewContainer: UIViewRepresentable {
         )
 
         appState.arSession = arView.session
-        appState.arController.attach(to: arView, sessionDelegate: context.coordinator.sessionCoordinator)
+        appState.arController.attach(to: arView, sessionCoordinator: context.coordinator.sessionCoordinator)
         context.coordinator.placementGestures.attach(to: arView, controller: appState.arController)
         context.coordinator.placementGestures.onScaleChanged = { [weak appState] scale in
             Task { @MainActor in
