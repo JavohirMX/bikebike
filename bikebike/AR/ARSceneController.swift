@@ -148,7 +148,6 @@ final class ARSceneController {
         isPlacementMode = true
         trackConfirmed = false
         placementAssetsReady = false
-        isPreparingPlacementAssets = true
         placementScale = 1.0
         placementYaw = 0
         placementPosition = nil
@@ -158,17 +157,30 @@ final class ARSceneController {
         removeTrack()
         removeGhost()
 
+        // Plane scanning starts immediately; ghost waits on assets only.
         resumePlaneDetection()
-        Task { @MainActor in
-            let trackId = RaceTrackCatalog.normalizedTrackId(selectedTrackId)
-            if RaceTrackCatalog.isUSDZTrackId(trackId) {
+
+        let trackId = RaceTrackCatalog.normalizedTrackId(selectedTrackId)
+        let needsUSDZLoad = RaceTrackCatalog.isUSDZTrackId(trackId)
+            && !RaceTrackAssetLoader.hasLoaded(trackId: trackId)
+        isPreparingPlacementAssets = needsUSDZLoad
+
+        if needsUSDZLoad {
+            Task { @MainActor in
                 await RaceTrackAssetLoader.preloadTrack(id: trackId)
+                guard isPlacementMode else { return }
+                finishPlacementAssetPrep()
             }
-            refreshTrackGeometry()
-            placementAssetsReady = true
-            isPreparingPlacementAssets = false
-            tryInitialGhostPlacement()
+        } else {
+            finishPlacementAssetPrep()
         }
+    }
+
+    private func finishPlacementAssetPrep() {
+        refreshTrackGeometry()
+        placementAssetsReady = true
+        isPreparingPlacementAssets = false
+        tryInitialGhostPlacement()
     }
 
     func cancelPlacementPreview() {
@@ -501,7 +513,6 @@ final class ARSceneController {
                 boostVFXEntities[playerId] = vfx
                 boostVFXBurstStartedAt[playerId] = Date().timeIntervalSince1970
                 updateBoostVFXAnimation(playerId: playerId)
-                triggerBoostParticleBurst(on: vfx)
             }
         } else {
             removeBoostVFX(for: playerId)
@@ -800,7 +811,7 @@ final class ARSceneController {
         guard let frame = arView?.session.currentFrame else { return }
         let mappingStatus = frame.worldMappingStatus
         let trackingState = frame.camera.trackingState
-        if mappingStatus == .mapped, case .normal = trackingState {
+        if mappingStatus == .mapped || mappingStatus == .extending, case .normal = trackingState {
             notifyRelocalizationReady()
         }
     }
@@ -885,34 +896,6 @@ private func makeBoostVFX() -> Entity {
         root.addChild(ember)
     }
 
-    let emitter = Entity()
-    emitter.name = "BoostParticles"
-    emitter.position = SIMD3(0, 0, 0.01)
-    var particles = ParticleEmitterComponent.Presets.sparks
-    particles.emitterShape = .sphere
-    particles.emitterShapeSize = SIMD3(repeating: 0.006)
-    particles.birthDirection = .local
-    particles.emissionDirection = SIMD3(0, 0.05, 1)
-    particles.particlesInheritTransform = true
-    particles.isEmitting = true
-    particles.simulationState = .play
-    particles.speed = 0.35
-    particles.speedVariation = 0.15
-    particles.burstCount = 70
-    particles.burstCountVariation = 15
-    particles.mainEmitter.birthRate = 280
-    particles.mainEmitter.lifeSpan = 0.4
-    particles.mainEmitter.size = 0.012
-    particles.mainEmitter.sizeVariation = 0.006
-    particles.mainEmitter.spreadingAngle = 0.5
-    particles.mainEmitter.blendMode = .additive
-    particles.mainEmitter.color = .evolving(
-        start: .single(.orange),
-        end: .single(.yellow)
-    )
-    emitter.components.set(particles)
-    root.addChild(emitter)
-
     return root
 }
 
@@ -963,13 +946,6 @@ private extension ARSceneController {
             let pulse = 0.85 + 0.25 * sin(Float(elapsed) * (18 + phase * 10))
             child.scale = SIMD3(repeating: pulse)
         }
-    }
-
-    func triggerBoostParticleBurst(on vfx: Entity) {
-        guard let emitter = vfx.children.first(where: { $0.name == "BoostParticles" }),
-              var particles = emitter.components[ParticleEmitterComponent.self] else { return }
-        particles.burst()
-        emitter.components.set(particles)
     }
 
     func removeBoostVFX(for playerId: String) {
