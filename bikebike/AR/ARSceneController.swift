@@ -24,7 +24,8 @@ final class ARSceneController {
     private var cars: [String: Entity] = [:]
     private var carSpeeds: [String: Float] = [:]
     private var bikeMovementStates: [String: BikeMovementState] = [:]
-    private var boostEmitterEntities: [String: Entity] = [:]
+    private var boostVFXEntities: [String: Entity] = [:]
+    private var boostVFXBurstStartedAt: [String: TimeInterval] = [:]
     private var localPlayerIndicator: Entity?
     private var localPlayerIndicatorBobStart: TimeInterval?
     private var remoteBoostActive: [String: Bool] = [:]
@@ -408,7 +409,7 @@ final class ARSceneController {
         bikeMovementStates.removeValue(forKey: playerId)
         remoteCarStates.removeValue(forKey: playerId)
         remoteBoostActive.removeValue(forKey: playerId)
-        removeBoostEmitter(for: playerId)
+        removeBoostVFX(for: playerId)
         lastMeasuredArc.removeValue(forKey: playerId)
         distanceSinceLap.removeValue(forKey: playerId)
         passedCheckpoint.removeValue(forKey: playerId)
@@ -476,6 +477,7 @@ final class ARSceneController {
 
         setBoostActive(playerId: playerId, active: boostActive)
         updateLocalPlayerIndicatorBob()
+        updateBoostVFXAnimation(playerId: playerId)
         checkFinishLineCrossing(playerId: playerId, car: car, previousLocal: previousLocal)
         return result.hitWall
     }
@@ -490,19 +492,24 @@ final class ARSceneController {
     func setBoostActive(playerId: String, active: Bool) {
         guard let car = cars[playerId] else { return }
         if active {
-            if boostEmitterEntities[playerId] == nil {
-                let emitter = makeBoostEmitter()
-                emitter.position = SIMD3(0, 0.04, 0.08)
-                car.addChild(emitter)
-                boostEmitterEntities[playerId] = emitter
+            if boostVFXEntities[playerId] == nil {
+                let vfx = makeBoostVFX()
+                // Visual bike is longer than the collider (fit scale 1.35); pin to the rear tip.
+                let rearZ = OvalTrackGeometry.carSize.z * 0.5 * 1.35
+                vfx.position = SIMD3(0, 0.012, rearZ)
+                car.addChild(vfx)
+                boostVFXEntities[playerId] = vfx
+                boostVFXBurstStartedAt[playerId] = Date().timeIntervalSince1970
+                updateBoostVFXAnimation(playerId: playerId)
+                triggerBoostParticleBurst(on: vfx)
             }
         } else {
-            removeBoostEmitter(for: playerId)
+            removeBoostVFX(for: playerId)
         }
     }
 
     func isBoostActive(playerId: String) -> Bool {
-        boostEmitterEntities[playerId] != nil
+        boostVFXEntities[playerId] != nil
     }
 
     func carTransform(playerId: String) -> TransformPacket? {
@@ -624,6 +631,7 @@ final class ARSceneController {
             car.position = simd_mix(car.position, targetPos, SIMD3(repeating: alpha))
             car.orientation = simd_slerp(car.orientation, targetRot, alpha)
             alignRemoteCarToTrack(car, playerId: playerId)
+            updateBoostVFXAnimation(playerId: playerId)
         }
     }
 
@@ -821,33 +829,153 @@ final class ARSceneController {
     }
 }
 
+private enum BoostVFX {
+    static let burstScale: Float = 1.9
+    static let sustainScale: Float = 1.0
+    static let burstDuration: TimeInterval = 0.22
+    /// RealityKit cones point along +Y; rotate so the tip aims rearward (+Z).
+    static let rearFacingOrientation = simd_quatf(angle: .pi / 2, axis: SIMD3(1, 0, 0))
+}
+
 private struct RemoteCarState {
     var transform: TransformPacket
     var speed: Float
     var receivedAt: TimeInterval
 }
 
-private func makeBoostEmitter() -> Entity {
-    let entity = Entity()
-    var particles = ParticleEmitterComponent()
+private func makeBoostVFX() -> Entity {
+    let root = Entity()
+    root.name = "BoostVFX"
+    // Stretch into a rear jet; bike is only ~6.5cm long.
+    root.scale = SIMD3(0.85, 0.85, 1.35)
+
+    let layers: [(height: Float, radius: Float, z: Float, color: UIColor, opacity: Float)] = [
+        (0.07, 0.022, 0.012, UIColor(red: 1.0, green: 0.18, blue: 0.02, alpha: 1), 0.55),
+        (0.055, 0.014, 0.008, UIColor(red: 1.0, green: 0.45, blue: 0.05, alpha: 1), 0.7),
+        (0.04, 0.008, 0.004, UIColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1), 0.85),
+        (0.028, 0.004, 0.0, UIColor(red: 1.0, green: 0.98, blue: 0.75, alpha: 1), 0.95)
+    ]
+
+    for (index, layer) in layers.enumerated() {
+        let flame = makeFlameCone(
+            height: layer.height,
+            radius: layer.radius,
+            color: layer.color,
+            opacity: layer.opacity
+        )
+        flame.name = "FlameLayer\(index)"
+        // Cone is centered on origin; shift so the wide base sits at the exhaust and the tip trails +Z.
+        flame.position = SIMD3(0, 0, layer.z + layer.height * 0.5)
+        root.addChild(flame)
+    }
+
+    for index in 0..<5 {
+        let ember = makeEmberOrb(
+            size: 0.006 + Float(index) * 0.0012,
+            color: index % 2 == 0
+                ? UIColor(red: 1.0, green: 0.55, blue: 0.08, alpha: 1)
+                : UIColor(red: 1.0, green: 0.9, blue: 0.35, alpha: 1)
+        )
+        ember.name = "Ember\(index)"
+        ember.position = SIMD3(
+            Float.random(in: -0.008...0.008),
+            Float.random(in: -0.004...0.006),
+            0.03 + Float(index) * 0.012
+        )
+        root.addChild(ember)
+    }
+
+    let emitter = Entity()
+    emitter.name = "BoostParticles"
+    emitter.position = SIMD3(0, 0, 0.01)
+    var particles = ParticleEmitterComponent.Presets.sparks
     particles.emitterShape = .sphere
-    particles.emitterShapeSize = SIMD3(0.02, 0.02, 0.02)
+    particles.emitterShapeSize = SIMD3(repeating: 0.006)
+    particles.birthDirection = .local
+    particles.emissionDirection = SIMD3(0, 0.05, 1)
+    particles.particlesInheritTransform = true
+    particles.isEmitting = true
+    particles.simulationState = .play
     particles.speed = 0.35
-    particles.mainEmitter.birthRate = 180
-    particles.mainEmitter.lifeSpan = 0.35
+    particles.speedVariation = 0.15
+    particles.burstCount = 70
+    particles.burstCountVariation = 15
+    particles.mainEmitter.birthRate = 280
+    particles.mainEmitter.lifeSpan = 0.4
     particles.mainEmitter.size = 0.012
+    particles.mainEmitter.sizeVariation = 0.006
+    particles.mainEmitter.spreadingAngle = 0.5
+    particles.mainEmitter.blendMode = .additive
     particles.mainEmitter.color = .evolving(
         start: .single(.orange),
         end: .single(.yellow)
     )
-    entity.components.set(particles)
-    return entity
+    emitter.components.set(particles)
+    root.addChild(emitter)
+
+    return root
+}
+
+private func makeFlameCone(height: Float, radius: Float, color: UIColor, opacity: Float) -> ModelEntity {
+    var material = UnlitMaterial(color: color)
+    material.blending = .transparent(opacity: .init(floatLiteral: opacity))
+    let cone = ModelEntity(
+        mesh: .generateCone(height: height, radius: radius),
+        materials: [material]
+    )
+    cone.orientation = BoostVFX.rearFacingOrientation
+    cone.components.remove(CollisionComponent.self)
+    return cone
+}
+
+private func makeEmberOrb(size: Float, color: UIColor) -> ModelEntity {
+    var material = UnlitMaterial(color: color)
+    material.blending = .transparent(opacity: .init(floatLiteral: 0.9))
+    let orb = ModelEntity(
+        mesh: .generateSphere(radius: size),
+        materials: [material]
+    )
+    orb.components.remove(CollisionComponent.self)
+    return orb
 }
 
 private extension ARSceneController {
-    func removeBoostEmitter(for playerId: String) {
-        boostEmitterEntities[playerId]?.removeFromParent()
-        boostEmitterEntities.removeValue(forKey: playerId)
+    func updateBoostVFXAnimation(playerId: String) {
+        guard let vfx = boostVFXEntities[playerId],
+              let startedAt = boostVFXBurstStartedAt[playerId] else { return }
+        let now = Date().timeIntervalSince1970
+        let elapsed = now - startedAt
+        let burstT = min(1, Float(elapsed / BoostVFX.burstDuration))
+        let burstScale = BoostVFX.burstScale + (BoostVFX.sustainScale - BoostVFX.burstScale) * burstT
+
+        let flicker = 1.0
+            + 0.08 * sin(Float(elapsed) * 28)
+            + 0.05 * sin(Float(elapsed) * 47 + 1.7)
+        let scaleXZ = 0.85 * burstScale * flicker
+        let scaleZ = 1.35 * burstScale * (0.92 + 0.12 * flicker)
+        vfx.scale = SIMD3(scaleXZ, scaleXZ, scaleZ)
+
+        for child in vfx.children where child.name.hasPrefix("Ember") {
+            let phase = Float(abs(child.name.hashValue % 1000)) / 1000
+            let drift = 0.004 * sin(Float(elapsed) * (10 + phase * 8) + phase * 6)
+            child.position.x = drift
+            child.position.y = abs(drift) * 0.4
+            let pulse = 0.85 + 0.25 * sin(Float(elapsed) * (18 + phase * 10))
+            child.scale = SIMD3(repeating: pulse)
+        }
+    }
+
+    func triggerBoostParticleBurst(on vfx: Entity) {
+        guard let emitter = vfx.children.first(where: { $0.name == "BoostParticles" }),
+              var particles = emitter.components[ParticleEmitterComponent.self] else { return }
+        particles.burst()
+        emitter.components.set(particles)
+    }
+
+    func removeBoostVFX(for playerId: String) {
+        boostVFXEntities[playerId]?.removeFromParent()
+        boostVFXEntities.removeValue(forKey: playerId)
+        boostVFXBurstStartedAt.removeValue(forKey: playerId)
     }
 }
 
