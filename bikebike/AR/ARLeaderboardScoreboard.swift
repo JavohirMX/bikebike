@@ -108,9 +108,23 @@ final class ARLeaderboardScoreboard {
         localPlayerId: String,
         lapCount: Int
     ) {
+        Task { @MainActor in
+            await applyTextureAsync(
+                entries: entries,
+                localPlayerId: localPlayerId,
+                lapCount: lapCount
+            )
+        }
+    }
+
+    private func applyTextureAsync(
+        entries: [LeaderboardEntry],
+        localPlayerId: String,
+        lapCount: Int
+    ) async {
         guard let panel = panelEntity else { return }
 
-        if let texture = renderFallbackTexture(
+        if let texture = await renderFallbackTexture(
             entries: entries,
             localPlayerId: localPlayerId,
             lapCount: lapCount
@@ -120,7 +134,7 @@ final class ARLeaderboardScoreboard {
         }
 
         Self.logger.warning("CoreGraphics leaderboard bake failed; trying ImageRenderer")
-        if let texture = renderTexture(
+        if let texture = await renderTexture(
             entries: entries,
             localPlayerId: localPlayerId,
             lapCount: lapCount
@@ -158,7 +172,7 @@ final class ARLeaderboardScoreboard {
         entries: [LeaderboardEntry],
         localPlayerId: String,
         lapCount: Int
-    ) -> TextureResource? {
+    ) async -> TextureResource? {
         let view = ARLeaderboardPanelView(
             entries: entries,
             localPlayerId: localPlayerId,
@@ -172,14 +186,14 @@ final class ARLeaderboardScoreboard {
             Self.logger.warning("ImageRenderer returned nil cgImage")
             return nil
         }
-        return textureResource(from: cgImage)
+        return await textureResource(from: cgImage)
     }
 
     private func renderFallbackTexture(
         entries: [LeaderboardEntry],
         localPlayerId: String,
         lapCount: Int
-    ) -> TextureResource? {
+    ) async -> TextureResource? {
         let size = CGSize(width: 320, height: 240)
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { _ in
@@ -271,11 +285,11 @@ final class ARLeaderboardScoreboard {
         }
 
         guard let cgImage = image.cgImage else { return nil }
-        return textureResource(from: cgImage)
+        return await textureResource(from: cgImage)
     }
 
-    private func textureResource(from cgImage: CGImage) -> TextureResource? {
-        try? TextureResource.generate(from: cgImage, options: .init(semantic: .color))
+    private func textureResource(from cgImage: CGImage) async -> TextureResource? {
+        try? await TextureResource(image: cgImage, options: .init(semantic: .color))
     }
 
     private func formatRaceTime(_ time: TimeInterval) -> String {

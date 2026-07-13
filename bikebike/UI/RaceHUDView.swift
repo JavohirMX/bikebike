@@ -189,54 +189,122 @@ struct ResultsView: View {
     }
 
     private var soloResultsPanel: some View {
-        VStack(spacing: 0) {
-            // Top Header Banner
+        let localCar = appState.carStates.first { $0.playerId == appState.raceSession.localPlayerId }
+            ?? appState.carStates.first
+        let totalTime = localCar?.finishTime ?? localCar?.totalTime ?? appState.leaderboard.first?.totalTime ?? 0
+        let lapTimes = localCar?.lapTimes ?? []
+        let fastestIndex = lapTimes.enumerated().min(by: { $0.element < $1.element })?.offset
+        let driver = DriverCatalog.driver(for: appState.localSelectedDriverId)
+
+        return VStack(spacing: 0) {
             MultiplayerBanner(title: "Food Delivered!")
-                .frame(height: 75)
-                .padding(.bottom, -12) // overlap the body
-                .zIndex(1)
+                .frame(maxWidth: 440)
+                .frame(height: 68)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
 
-            // Body Container
-            VStack(spacing: 8) {
-                Text("Your fastest lap time")
-                    .font(BikeBikeTheme.bodyFont(size: 18))
-                    .foregroundStyle(BikeBikeTheme.darkBlue)
-                    .padding(.top, 48)
+            HStack(alignment: .center, spacing: 28) {
+                // Left: driver
+                VStack(spacing: 14) {
+                    Image(DriverCatalog.resolvedImageName(for: driver))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 140, height: 140)
+                    Text(driver.displayName)
+                        .font(BikeBikeTheme.titleFont(size: 32))
+                        .foregroundStyle(BikeBikeTheme.darkBlue)
+                        .shadow(color: .white.opacity(0.7), radius: 2, y: 1)
+                }
+                .frame(maxWidth: .infinity)
 
-                Text(formatSoloTime(appState.leaderboard.first?.fastestLapTime ?? 0))
-                    .font(BikeBikeTheme.titleFont(size: 64))
-                    .foregroundStyle(BikeBikeTheme.darkBlue)
-                    .padding(.bottom, 24)
+                // Right: times
+                VStack(spacing: 10) {
+                    VStack(spacing: 2) {
+                        Text("Total Time")
+                            .font(BikeBikeTheme.bodyFont(size: 15))
+                            .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.75))
+                        Text(formatRaceResultTime(totalTime))
+                            .font(BikeBikeTheme.titleFont(size: 48))
+                            .foregroundStyle(BikeBikeTheme.darkBlue)
+                            .minimumScaleFactor(0.7)
+                            .lineLimit(1)
+                    }
+
+                    VStack(spacing: 2) {
+                        if appState.soloIsNewPersonalBest {
+                            Text("New Personal Best")
+                                .font(BikeBikeTheme.titleFont(size: 16))
+                                .foregroundStyle(BikeBikeTheme.darkBlue)
+                        }
+                        if let previous = appState.soloPreviousPersonalBestTime {
+                            Text("Best: \(formatRaceResultTime(previous))")
+                                .font(BikeBikeTheme.bodyFont(size: 14))
+                                .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.7))
+                        } else if !appState.soloIsNewPersonalBest, let best = appState.soloPersonalBestTime {
+                            Text("Best: \(formatRaceResultTime(best))")
+                                .font(BikeBikeTheme.bodyFont(size: 14))
+                                .foregroundStyle(BikeBikeTheme.darkBlue.opacity(0.7))
+                        }
+                    }
+
+                    if !lapTimes.isEmpty {
+                        VStack(spacing: 6) {
+                            ForEach(Array(lapTimes.enumerated()), id: \.offset) { index, lapTime in
+                                let isFastest = index == fastestIndex
+                                HStack {
+                                    Text("Lap \(index + 1)")
+                                        .font(BikeBikeTheme.bodyFont(size: 16))
+                                    Spacer(minLength: 8)
+                                    Text(formatRaceResultTime(lapTime))
+                                        .font(BikeBikeTheme.bodyFont(size: 16))
+                                        .monospacedDigit()
+                                    if isFastest {
+                                        Text("fastest")
+                                            .font(BikeBikeTheme.captionFont(size: 12))
+                                            .foregroundStyle(BikeBikeTheme.darkBlue)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(BikeBikeTheme.yellow)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .foregroundStyle(BikeBikeTheme.darkBlue)
+                                .fontWeight(isFastest ? .bold : .semibold)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(isFastest ? Color.white.opacity(0.65) : Color.white.opacity(0.35))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+                .frame(maxWidth: .infinity)
+                .background(Color(hex: "DDF2FE") ?? Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
+                .shadow(color: BikeBikeTheme.panelShadow, radius: 12, y: 6)
             }
-            .frame(maxWidth: .infinity)
-            .overlay(alignment: .bottomTrailing) {
-                Image(systemName: "seal.fill")
-                    .resizable()
-                    .frame(width: 100, height: 100)
-                    .foregroundStyle(BikeBikeTheme.skyBlue)
-                    .rotationEffect(.degrees(15))
-                    .offset(x: 20, y: 20)
-            }
-            .background(Color(hex: "DDF2FE") ?? Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 32))
-            .padding(.bottom, 44) // Space for buttons
-        }
-        .bikeBikeScreenContent(maxWidth: 480)
-        .shadow(color: BikeBikeTheme.panelShadow, radius: 12, y: 6)
-        .overlay(alignment: .bottom) {
-            HStack(spacing: 40) {
+            .padding(.horizontal, 40)
+            .padding(.top, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 32) {
                 BikeBikePillButton(title: "Exit", style: .blue) {
                     appState.goHome()
                 }
-                .frame(width: 120)
+                .frame(width: 140)
 
                 BikeBikePillButton(title: "Play Again", style: .yellow) {
                     appState.playAgain()
                 }
-                .frame(width: 180)
+                .frame(width: 200)
             }
-            .offset(y: 24)
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 12)
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var multiplayerResultsPanel: some View {
@@ -340,11 +408,10 @@ struct ResultsView: View {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
 
-    private func formatSoloTime(_ t: TimeInterval) -> String {
-        let total = Int(t)
-        let minutes = (total % 3600) / 60
-        let seconds = total % 60
-        return String(format: "%02d:%02dm", minutes, seconds)
+    private func formatRaceResultTime(_ t: TimeInterval) -> String {
+        let minutes = Int(t) / 60
+        let seconds = t.truncatingRemainder(dividingBy: 60)
+        return String(format: "%d:%04.1f", minutes, seconds)
     }
 }
 
@@ -390,6 +457,12 @@ struct ResultsView: View {
         .environment(PreviewData.appState {
             $0.phase = .results
             $0.role = .solo
-            $0.elapsedTime = 733.0 // 12:13m
+            $0.players = [PreviewData.host]
+            $0.carStates = [PreviewData.finishedSoloCarState]
+            $0.leaderboard = LeaderboardSorter.sort(players: [PreviewData.host], cars: [PreviewData.finishedSoloCarState])
+            $0.raceConfig.lapCount = 3
+            $0.soloIsNewPersonalBest = true
+            $0.soloPersonalBestTime = 83.4
+            $0.soloPreviousPersonalBestTime = 85.1
         })
 }

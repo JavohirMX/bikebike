@@ -53,6 +53,11 @@ final class AppState: RaceSessionDelegate {
     var boostRequested = false
     var dnfTimeRemaining: Int?
     private var dnfTimerTask: Task<Void, Never>?
+    /// Set when entering solo results; used by `ResultsView`.
+    var soloIsNewPersonalBest = false
+    var soloPersonalBestTime: TimeInterval?
+    /// Standing best before this race finished; nil on a first-ever run.
+    var soloPreviousPersonalBestTime: TimeInterval?
 
     var pendingPlacementStart = false
     private var placementReturnPhase: AppPhase?
@@ -1130,6 +1135,7 @@ final class AppState: RaceSessionDelegate {
                 trackProgress: 0,
                 lastLapTime: nil,
                 fastestLapTime: nil,
+                lapTimes: [],
                 totalTime: 0,
                 finished: false,
                 finishTime: nil,
@@ -1353,6 +1359,8 @@ final class AppState: RaceSessionDelegate {
                 currentLap: 0,
                 trackProgress: 0,
                 lastLapTime: nil,
+                fastestLapTime: nil,
+                lapTimes: [],
                 totalTime: 0,
                 finished: false,
                 finishTime: nil,
@@ -1380,6 +1388,7 @@ final class AppState: RaceSessionDelegate {
 
         carStates[idx].currentLap += 1
         carStates[idx].lastLapTime = lapTime
+        carStates[idx].lapTimes.append(lapTime)
         let previousFastest = carStates[idx].fastestLapTime ?? .infinity
         if lapTime < previousFastest {
             carStates[idx].fastestLapTime = lapTime
@@ -1425,6 +1434,9 @@ final class AppState: RaceSessionDelegate {
         carStates[idx].lastLapTime = payload.lapTime
         carStates[idx].fastestLapTime = payload.fastestLapTime
         carStates[idx].totalTime = payload.totalTime
+        if carStates[idx].lapTimes.count < payload.lapNumber {
+            carStates[idx].lapTimes.append(payload.lapTime)
+        }
         if payload.lapNumber >= raceConfig.lapCount {
             carStates[idx].finished = true
             carStates[idx].finishTime = payload.totalTime
@@ -1474,11 +1486,34 @@ final class AppState: RaceSessionDelegate {
         dnfTimerTask?.cancel()
         dnfTimerTask = nil
         dnfTimeRemaining = nil
+        updateSoloPersonalBestIfNeeded()
         let payload = RaceEndPayload(leaderboard: leaderboard, reason: "allFinished")
         if role == .host, let envelope = try? raceSession.encode(type: .raceEnd, payload: payload) {
             raceSession.send(envelope, reliable: true)
         }
         phase = .results
+    }
+
+    private func updateSoloPersonalBestIfNeeded() {
+        soloIsNewPersonalBest = false
+        soloPersonalBestTime = nil
+        soloPreviousPersonalBestTime = nil
+        guard role == .solo else { return }
+        let total = carStates.first(where: { $0.playerId == raceSession.localPlayerId })?.finishTime
+            ?? carStates.first(where: { $0.playerId == raceSession.localPlayerId })?.totalTime
+            ?? leaderboard.first?.totalTime
+            ?? 0
+        guard total > 0 else { return }
+        let trackId = raceConfig.trackId
+        let lapCount = raceConfig.lapCount
+        soloPreviousPersonalBestTime = SoloPersonalBestStore.bestTotalTime(trackId: trackId, lapCount: lapCount)
+        let result = SoloPersonalBestStore.updateIfBetter(
+            trackId: trackId,
+            lapCount: lapCount,
+            time: total
+        )
+        soloIsNewPersonalBest = result.isNew
+        soloPersonalBestTime = result.best
     }
 
     private func updateLocalCarState() {

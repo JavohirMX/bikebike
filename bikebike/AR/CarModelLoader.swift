@@ -3,7 +3,6 @@
 //  bikebike
 //
 
-import Combine
 import Foundation
 import os
 import RealityKit
@@ -21,9 +20,8 @@ enum CarModelLoader {
 
     private static var templateEntities: [String: Entity] = [:]
     private static var preloadTasks: [String: Task<Void, Never>] = [:]
-    private static var loadCancellables: [String: AnyCancellable] = [:]
 
-    static func preload(driverId: String = DriverCatalog.default.id) async {
+    static func preload(driverId: String) async {
         if templateEntities[driverId] != nil {
             return
         }
@@ -120,25 +118,7 @@ enum CarModelLoader {
         guard let url = resolveModelURL(for: driverId) else {
             throw CarModelLoadError.modelNotFound(driverId)
         }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            loadCancellables[driverId] = Entity.loadAsync(contentsOf: url)
-                .sink(
-                    receiveCompletion: { completion in
-                        switch completion {
-                        case .finished:
-                            break
-                        case .failure(let error):
-                            loadCancellables[driverId] = nil
-                            continuation.resume(throwing: error)
-                        }
-                    },
-                    receiveValue: { entity in
-                        loadCancellables[driverId] = nil
-                        continuation.resume(returning: entity)
-                    }
-                )
-        }
+        return try await Entity(contentsOf: url)
     }
 
     private static func makeCarRoot() -> Entity {

@@ -3,7 +3,6 @@
 //  bikebike
 //
 
-import Combine
 import Foundation
 import os
 import RealityKit
@@ -21,7 +20,6 @@ enum RaceTrackAssetLoader {
     private static var loadedTracks: [String: LoadedTrack] = [:]
     private static var preloadTask: Task<Void, Never>?
     private static var perTrackLoadTasks: [String: Task<Void, Never>] = [:]
-    private static var loadCancellables: [String: AnyCancellable] = [:]
 
     static func hasLoaded(trackId: String) -> Bool {
         loadedTracks[trackId] != nil
@@ -161,25 +159,7 @@ enum RaceTrackAssetLoader {
         guard let url = resolveModelURL(modelName: modelName) else {
             throw CarModelLoadError.modelNotFound(modelName)
         }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            loadCancellables[modelName] = Entity.loadAsync(contentsOf: url)
-                .sink(
-                    receiveCompletion: { completion in
-                        switch completion {
-                        case .finished:
-                            break
-                        case .failure(let error):
-                            loadCancellables[modelName] = nil
-                            continuation.resume(throwing: error)
-                        }
-                    },
-                    receiveValue: { entity in
-                        loadCancellables[modelName] = nil
-                        continuation.resume(returning: entity)
-                    }
-                )
-        }
+        return try await Entity(contentsOf: url)
     }
 
     private static func prepareTrackRoot(from loaded: Entity) -> Entity {

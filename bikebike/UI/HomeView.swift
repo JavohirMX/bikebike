@@ -28,10 +28,11 @@ struct HomeView: View {
                         style: .blue,
                         size: 48,
                         iconSize: 22,
-                        isEnabled: !buttonsDisabled
-                    ) {
-                        showsSettings = true
-                    }
+                        isEnabled: !buttonsDisabled,
+                        action: {
+                            showsSettings = true
+                        }
+                    )
                 }
                 .padding(.trailing, 24)
                 .padding(.top, 16)

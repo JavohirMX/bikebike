@@ -213,6 +213,7 @@ struct CarState: Codable, Identifiable, Equatable {
     var trackProgress: Float
     var lastLapTime: TimeInterval?
     var fastestLapTime: TimeInterval?
+    var lapTimes: [TimeInterval] = []
     var totalTime: TimeInterval
     var finished: Bool
     var finishTime: TimeInterval?

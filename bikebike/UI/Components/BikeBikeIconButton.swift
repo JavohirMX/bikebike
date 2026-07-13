@@ -157,9 +157,9 @@ struct BikeBikeIconButton: View {
 
 #Preview("Icon Buttons") {
     HStack(spacing: 16) {
-        BikeBikeIconButton(systemImage: "arrowtriangle.up.fill", showsStroke: false) {}
-        BikeBikeIconButton(systemImage: "bolt.fill", style: .blue) {}
-        BikeBikeIconButton(systemImage: "chevron.left", showsStroke: false) {}
+        BikeBikeIconButton(systemImage: "arrowtriangle.up.fill", showsStroke: false, action: {})
+        BikeBikeIconButton(systemImage: "bolt.fill", style: .blue, action: {})
+        BikeBikeIconButton(systemImage: "chevron.left", showsStroke: false, action: {})
     }
     .padding()
 }

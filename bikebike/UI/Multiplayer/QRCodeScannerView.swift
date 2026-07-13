@@ -75,7 +75,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     }
 
     private func updateOrientation() {
-        let orientation = view.window?.windowScene?.interfaceOrientation ?? .landscapeRight
+        let orientation = view.window?.windowScene?.effectiveGeometry.interfaceOrientation ?? .landscapeRight
         let angle = rotationAngle(for: orientation)
 
         if let connection = previewLayer?.connection {

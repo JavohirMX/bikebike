@@ -64,10 +64,29 @@ enum PreviewData {
     static var carStates: [CarState] {
         [
             CarState(playerId: "host-1", transform: transform(), speed: 3.2, currentLap: 2, trackProgress: 0.72,
-                     lastLapTime: 11.8, fastestLapTime: 11.8, totalTime: 42.3, finished: false, finishTime: nil, status: .racing),
+                     lastLapTime: 11.8, fastestLapTime: 11.8, lapTimes: [12.1, 11.8], totalTime: 42.3,
+                     finished: false, finishTime: nil, status: .racing),
             CarState(playerId: "guest-1", transform: transform(), speed: 2.7, currentLap: 1, trackProgress: 0.41,
-                     lastLapTime: 13.4, fastestLapTime: 13.4, totalTime: 40.1, finished: false, finishTime: nil, status: .racing)
+                     lastLapTime: 13.4, fastestLapTime: 13.4, lapTimes: [13.4], totalTime: 40.1,
+                     finished: false, finishTime: nil, status: .racing)
         ]
+    }
+
+    static var finishedSoloCarState: CarState {
+        CarState(
+            playerId: "host-1",
+            transform: transform(),
+            speed: 0,
+            currentLap: 3,
+            trackProgress: 1,
+            lastLapTime: 27.9,
+            fastestLapTime: 27.4,
+            lapTimes: [28.1, 27.4, 27.9],
+            totalTime: 83.4,
+            finished: true,
+            finishTime: 83.4,
+            status: .finished
+        )
     }
 
     static var leaderboard: [LeaderboardEntry] {
